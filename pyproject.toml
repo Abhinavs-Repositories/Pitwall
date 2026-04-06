@@ -1,0 +1,13 @@
+[project]
+name = "pitwall-ai"
+version = "0.1.0"
+description = "AI-powered F1 race strategy agent"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
