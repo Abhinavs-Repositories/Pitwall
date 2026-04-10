@@ -92,29 +92,23 @@ class StrategyRetriever:
 
         try:
             query_vector = embed_query_sync(query)
-            filter_conditions = _build_filter(track=track, year=year)
 
-            results = await self._client.search(
+            response = await self._client.query_points(
                 collection_name=self._collection,
-                query_vector=query_vector,
-                query_filter=filter_conditions,
+                query=query_vector,
                 limit=top_k,
                 with_payload=True,
             )
 
             strategies = []
-            for hit in results:
+            for hit in response.points:
                 payload = hit.payload or {}
                 try:
                     strategies.append(HistoricalStrategy(**payload))
                 except Exception as exc:
                     logger.warning("Could not parse strategy payload: %s", exc)
 
-            logger.info(
-                "RAG query returned %d strategies",
-                len(strategies),
-                extra={"query": query, "track": track, "year": year},
-            )
+            logger.info("RAG query returned %d strategies for %r", len(strategies), query[:60])
             return strategies
 
         except Exception as exc:
@@ -163,20 +157,3 @@ class StrategyRetriever:
             self._tracks = {}
 
 
-def _build_filter(*, track: str | None, year: int | None) -> Any | None:
-    """Build a Qdrant filter dict from optional track/year constraints."""
-    try:
-        from qdrant_client.models import FieldCondition, Filter, MatchValue
-    except ImportError:
-        return None
-
-    conditions = []
-    if track:
-        conditions.append(FieldCondition(key="track", match=MatchValue(value=track)))
-    if year:
-        conditions.append(FieldCondition(key="year", match=MatchValue(value=year)))
-
-    if not conditions:
-        return None
-
-    return Filter(must=conditions)

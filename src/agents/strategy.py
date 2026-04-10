@@ -55,10 +55,6 @@ def strategy_node(state: AgentState) -> dict[str, Any]:
 
     agents_used = list(state.agents_used) + ["strategy"]
 
-    logger.info(
-        "Strategy recommendations built for %d drivers", len(recommendations)
-    )
-
     return {
         "strategy_recommendations": recommendations,
         "agents_used": agents_used,

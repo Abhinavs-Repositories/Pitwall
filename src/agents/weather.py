@@ -63,14 +63,6 @@ async def weather_node(state: AgentState) -> dict[str, Any]:
 
     agents_used = list(state.agents_used) + ["weather"]
 
-    logger.info(
-        "Weather analysis complete",
-        extra={
-            "events": [e.event.value for e in events],
-            "alert": alert[:60] if alert else "",
-        },
-    )
-
     return {
         "weather_history": weather_history,
         "weather_alert": alert,

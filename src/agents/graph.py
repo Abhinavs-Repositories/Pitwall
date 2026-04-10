@@ -44,6 +44,26 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+# ---------------------------------------------------------------------------
+# Patch logging.Logger.makeRecord before ANY agent logger is used.
+# LangGraph runs nodes in thread executors; LangChain injects context that
+# includes "message" as an extra key, which the default makeRecord blocks.
+# ---------------------------------------------------------------------------
+def _patch_logging() -> None:
+    def _safe_make_record(self, name, level, fn, lno, msg, args, exc_info,
+                          func=None, extra=None, sinfo=None):
+        rv = logging.LogRecord(name, level, fn, lno, msg, args, exc_info, func, sinfo)
+        if extra:
+            reserved = {"message", "asctime"} | set(rv.__dict__.keys())
+            for key, value in extra.items():
+                if key not in reserved:
+                    rv.__dict__[key] = value
+        return rv
+    logging.Logger.makeRecord = _safe_make_record
+
+_patch_logging()
+# ---------------------------------------------------------------------------
+
 from langgraph.graph import END, START, StateGraph
 
 from src.agents.explainer import explainer_node

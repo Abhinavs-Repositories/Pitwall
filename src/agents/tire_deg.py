@@ -54,9 +54,4 @@ def tire_deg_node(state: AgentState) -> dict[str, Any]:
 
     agents_used = list(state.agents_used) + ["tire_degradation"]
 
-    logger.info(
-        "Tire degradation computed for %d drivers", len(degradations),
-        extra={"drivers": list(degradations.keys())},
-    )
-
     return {"tire_degradations": degradations, "agents_used": agents_used}

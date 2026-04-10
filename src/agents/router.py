@@ -68,15 +68,6 @@ def router_node(state: AgentState) -> dict[str, Any]:
     # LLM classification
     query_type = _classify(message)
 
-    logger.info(
-        "Router classified query",
-        extra={
-            "query_type": query_type,
-            "target_drivers": target_drivers,
-            "message": message[:80],
-        },
-    )
-
     return {
         "query_type": query_type,
         "target_drivers": target_drivers,

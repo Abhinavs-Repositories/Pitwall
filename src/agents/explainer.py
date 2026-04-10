@@ -49,8 +49,6 @@ def explainer_node(state: AgentState) -> dict[str, Any]:
 
     agents_used = list(state.agents_used) + ["explainer"]
 
-    logger.info("Explainer produced response (%d chars)", len(final_response))
-
     return {"final_response": final_response, "agents_used": agents_used}
 
 

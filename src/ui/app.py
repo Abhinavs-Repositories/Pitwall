@@ -157,7 +157,9 @@ with header_col1:
 races = fetch_races()
 race_options: dict[str, int] = {}
 for race in races:
-    label = f"{race.get('year', '?')} — {race.get('meeting_name', 'Unknown')} ({race.get('country_name', '?')})"
+    circuit = race.get("circuit_short_name") or race.get("location") or "Unknown"
+    country = race.get("country_name") or race.get("country_code") or "?"
+    label = f"{race.get('year', '?')} — {circuit} ({country})"
     race_options[label] = race.get("session_key", 0)
 
 with header_col2:

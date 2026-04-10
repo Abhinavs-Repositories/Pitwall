@@ -52,12 +52,6 @@ async def strategy_rag_node(state: AgentState) -> dict[str, Any]:
 
         agents_used = list(state.agents_used) + ["strategy_rag"]
 
-        logger.info(
-            "RAG retrieved %d strategies, track chars: %s",
-            len(historical),
-            bool(track_chars),
-        )
-
         return {
             "historical_context": historical,
             "track_characteristics": track_chars,

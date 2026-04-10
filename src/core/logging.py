@@ -7,6 +7,30 @@ from typing import Any
 from src.core.config import get_settings
 
 
+# ---------------------------------------------------------------------------
+# Patch Logger.makeRecord at import time so it never crashes on reserved keys.
+# LangChain/LangGraph thread executors inject context (including "message") into
+# log records; the default Python implementation raises KeyError on those keys.
+# ---------------------------------------------------------------------------
+
+def _safe_make_record(self, name, level, fn, lno, msg, args, exc_info,
+                      func=None, extra=None, sinfo=None):
+    rv = logging.LogRecord(name, level, fn, lno, msg, args, exc_info, func, sinfo)
+    if extra:
+        reserved = {"message", "asctime"} | set(rv.__dict__.keys())
+        for key, value in extra.items():
+            if key not in reserved:
+                rv.__dict__[key] = value
+    return rv
+
+logging.Logger.makeRecord = _safe_make_record  # applied at import time
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
 def get_logger(name: str) -> logging.Logger:
     """Return a logger configured for the given module name."""
     return logging.getLogger(name)
@@ -31,6 +55,11 @@ def configure_logging() -> None:
     else:
         root.handlers.clear()
         root.addHandler(handler)
+
+
+# ---------------------------------------------------------------------------
+# Formatter
+# ---------------------------------------------------------------------------
 
 
 class _StructuredFormatter(logging.Formatter):

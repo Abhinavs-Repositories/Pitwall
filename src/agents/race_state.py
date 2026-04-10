@@ -34,14 +34,6 @@ async def race_state_node(state: AgentState) -> dict[str, Any]:
             )
 
         agents_used = list(state.agents_used) + ["race_state"]
-        logger.info(
-            "Race state built",
-            extra={
-                "session_key": session_key,
-                "drivers": len(race_state.drivers),
-                "current_lap": race_state.current_lap,
-            },
-        )
         return {"race_state": race_state, "agents_used": agents_used}
 
     except Exception as exc:
