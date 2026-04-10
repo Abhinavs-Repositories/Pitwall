@@ -1,0 +1,388 @@
+{
+  "tracks": [
+    {
+      "name": "Bahrain International Circuit",
+      "country": "Bahrain",
+      "typical_strategy": "2-stop (Medium-Hard-Hard or Soft-Hard-Hard)",
+      "pit_loss_seconds": 22,
+      "tire_degradation": "High (rear-limited)",
+      "overtaking_difficulty": "Medium",
+      "safety_car_probability": "Medium",
+      "laps": 57,
+      "key_factor": "Tire management in high track temps; abrasive surface wears rears quickly",
+      "compound_life": {
+        "soft": 14,
+        "medium": 24,
+        "hard": 35
+      }
+    },
+    {
+      "name": "Jeddah Corniche Circuit",
+      "country": "Saudi Arabia",
+      "typical_strategy": "1-stop (Medium-Hard)",
+      "pit_loss_seconds": 24,
+      "tire_degradation": "Low-Medium",
+      "overtaking_difficulty": "Low (very tight street circuit)",
+      "safety_car_probability": "Very High",
+      "laps": 50,
+      "key_factor": "Safety car extremely likely; timing pit stop around SC can be decisive",
+      "compound_life": {
+        "soft": 18,
+        "medium": 30,
+        "hard": 40
+      }
+    },
+    {
+      "name": "Albert Park Circuit",
+      "country": "Australia",
+      "typical_strategy": "1-stop or 2-stop depending on safety cars",
+      "pit_loss_seconds": 23,
+      "tire_degradation": "Medium",
+      "overtaking_difficulty": "Low-Medium",
+      "safety_car_probability": "High",
+      "laps": 58,
+      "key_factor": "Multiple SC phases common; undercut very powerful here",
+      "compound_life": {
+        "soft": 15,
+        "medium": 25,
+        "hard": 38
+      }
+    },
+    {
+      "name": "Suzuka International Racing Course",
+      "country": "Japan",
+      "typical_strategy": "1-stop (Medium-Hard)",
+      "pit_loss_seconds": 23,
+      "tire_degradation": "Medium-High",
+      "overtaking_difficulty": "High (limited opportunities)",
+      "safety_car_probability": "Medium",
+      "laps": 53,
+      "key_factor": "Track position critical; overcut viable on long straights section",
+      "compound_life": {
+        "soft": 14,
+        "medium": 26,
+        "hard": 36
+      }
+    },
+    {
+      "name": "Shanghai International Circuit",
+      "country": "China",
+      "typical_strategy": "2-stop (Soft-Medium-Hard or Medium-Hard-Hard)",
+      "pit_loss_seconds": 24,
+      "tire_degradation": "Medium-High",
+      "overtaking_difficulty": "Medium",
+      "safety_car_probability": "Medium",
+      "laps": 56,
+      "key_factor": "Long pit lane; tyre deg picks up sharply in final stint",
+      "compound_life": {
+        "soft": 13,
+        "medium": 24,
+        "hard": 35
+      }
+    },
+    {
+      "name": "Miami International Autodrome",
+      "country": "USA (Miami)",
+      "typical_strategy": "1-stop (Medium-Hard)",
+      "pit_loss_seconds": 23,
+      "tire_degradation": "Medium",
+      "overtaking_difficulty": "Medium",
+      "safety_car_probability": "High",
+      "laps": 57,
+      "key_factor": "Street-adjacent surface; SC very likely, undercut king here",
+      "compound_life": {
+        "soft": 16,
+        "medium": 27,
+        "hard": 38
+      }
+    },
+    {
+      "name": "Autodromo Enzo e Dino Ferrari",
+      "country": "Italy (Imola)",
+      "typical_strategy": "1-stop (Medium-Hard)",
+      "pit_loss_seconds": 26,
+      "tire_degradation": "Medium",
+      "overtaking_difficulty": "Low",
+      "safety_car_probability": "Medium",
+      "laps": 63,
+      "key_factor": "Long pit lane penalises stops heavily; track position premium",
+      "compound_life": {
+        "soft": 15,
+        "medium": 28,
+        "hard": 40
+      }
+    },
+    {
+      "name": "Circuit de Monaco",
+      "country": "Monaco",
+      "typical_strategy": "1-stop (any compound, rarely matters)",
+      "pit_loss_seconds": 30,
+      "tire_degradation": "Very Low",
+      "overtaking_difficulty": "Extreme (near impossible)",
+      "safety_car_probability": "Very High",
+      "laps": 78,
+      "key_factor": "Track position everything; pit only under SC or VSC; undercut almost never works",
+      "compound_life": {
+        "soft": 25,
+        "medium": 40,
+        "hard": 55
+      }
+    },
+    {
+      "name": "Circuit de Barcelona-Catalunya",
+      "country": "Spain",
+      "typical_strategy": "1-stop (Medium-Hard) or 2-stop in heat",
+      "pit_loss_seconds": 22,
+      "tire_degradation": "High",
+      "overtaking_difficulty": "Low (DRS train common)",
+      "safety_car_probability": "Low",
+      "laps": 66,
+      "key_factor": "High deg track; tyre management essential; 2-stop possible if temps high",
+      "compound_life": {
+        "soft": 12,
+        "medium": 22,
+        "hard": 33
+      }
+    },
+    {
+      "name": "Circuit Gilles Villeneuve",
+      "country": "Canada",
+      "typical_strategy": "1-stop with SC help or 2-stop",
+      "pit_loss_seconds": 24,
+      "tire_degradation": "Low",
+      "overtaking_difficulty": "Medium (good DRS zones)",
+      "safety_car_probability": "Very High",
+      "laps": 70,
+      "key_factor": "Almost guaranteed SC; waiting for it is a valid strategy; low deg",
+      "compound_life": {
+        "soft": 20,
+        "medium": 33,
+        "hard": 45
+      }
+    },
+    {
+      "name": "Red Bull Ring",
+      "country": "Austria",
+      "typical_strategy": "2-stop (Soft-Medium-Hard)",
+      "pit_loss_seconds": 20,
+      "tire_degradation": "High",
+      "overtaking_difficulty": "High (DRS zones powerful)",
+      "safety_car_probability": "Medium",
+      "laps": 71,
+      "key_factor": "Short lap = many laps; short pit lane means lower stop penalty; deg bites",
+      "compound_life": {
+        "soft": 12,
+        "medium": 22,
+        "hard": 32
+      }
+    },
+    {
+      "name": "Silverstone Circuit",
+      "country": "Great Britain",
+      "typical_strategy": "1-stop (Medium-Hard) or 2-stop",
+      "pit_loss_seconds": 22,
+      "tire_degradation": "High (front-limited)",
+      "overtaking_difficulty": "Medium",
+      "safety_car_probability": "Medium",
+      "laps": 52,
+      "key_factor": "High-speed corners destroy front tires; deg window closes fast",
+      "compound_life": {
+        "soft": 11,
+        "medium": 20,
+        "hard": 30
+      }
+    },
+    {
+      "name": "Hungaroring",
+      "country": "Hungary",
+      "typical_strategy": "2-stop (Soft-Medium-Hard)",
+      "pit_loss_seconds": 22,
+      "tire_degradation": "Medium-High",
+      "overtaking_difficulty": "Low",
+      "safety_car_probability": "Low",
+      "laps": 70,
+      "key_factor": "Slow-speed track; track position critical; undercut very effective at turn 1",
+      "compound_life": {
+        "soft": 14,
+        "medium": 25,
+        "hard": 36
+      }
+    },
+    {
+      "name": "Circuit de Spa-Francorchamps",
+      "country": "Belgium",
+      "typical_strategy": "1-stop (Medium-Hard)",
+      "pit_loss_seconds": 23,
+      "tire_degradation": "Medium",
+      "overtaking_difficulty": "High (Kemmel straight DRS)",
+      "safety_car_probability": "High",
+      "laps": 44,
+      "key_factor": "Weather unpredictable; rain changes everything; Kemmel straight DRS overtakes easy",
+      "compound_life": {
+        "soft": 16,
+        "medium": 27,
+        "hard": 40
+      }
+    },
+    {
+      "name": "Circuit Zandvoort",
+      "country": "Netherlands",
+      "typical_strategy": "2-stop (banked corners eat tires)",
+      "pit_loss_seconds": 23,
+      "tire_degradation": "High",
+      "overtaking_difficulty": "Very Low (narrow track)",
+      "safety_car_probability": "Medium",
+      "laps": 72,
+      "key_factor": "Banked Tarzan/Hugenholtzbocht eat tires; 2-stop almost mandatory",
+      "compound_life": {
+        "soft": 11,
+        "medium": 20,
+        "hard": 30
+      }
+    },
+    {
+      "name": "Autodromo Nazionale Monza",
+      "country": "Italy",
+      "typical_strategy": "1-stop (Medium-Hard) with SC assistance common",
+      "pit_loss_seconds": 26,
+      "tire_degradation": "Low",
+      "overtaking_difficulty": "High (slipstream powerful)",
+      "safety_car_probability": "High",
+      "laps": 53,
+      "key_factor": "Low drag setup; low deg; safety car almost guaranteed; slipstream decisive",
+      "compound_life": {
+        "soft": 22,
+        "medium": 35,
+        "hard": 48
+      }
+    },
+    {
+      "name": "Baku City Circuit",
+      "country": "Azerbaijan",
+      "typical_strategy": "1-stop (Medium-Hard) — SC usually neutralises",
+      "pit_loss_seconds": 25,
+      "tire_degradation": "Low",
+      "overtaking_difficulty": "High (long main straight)",
+      "safety_car_probability": "Very High",
+      "laps": 51,
+      "key_factor": "SC certainty; timing pit relative to SC window is the whole race",
+      "compound_life": {
+        "soft": 20,
+        "medium": 32,
+        "hard": 45
+      }
+    },
+    {
+      "name": "Marina Bay Street Circuit",
+      "country": "Singapore",
+      "typical_strategy": "1-stop under SC (Medium-Hard)",
+      "pit_loss_seconds": 30,
+      "tire_degradation": "Low (bumpy surface)",
+      "overtaking_difficulty": "Very Low (street circuit)",
+      "safety_car_probability": "Very High",
+      "laps": 62,
+      "key_factor": "SC certainty at night race; long pit lane punishes 2-stop; track position king",
+      "compound_life": {
+        "soft": 22,
+        "medium": 35,
+        "hard": 50
+      }
+    },
+    {
+      "name": "Circuit of the Americas",
+      "country": "USA (Austin)",
+      "typical_strategy": "2-stop (Medium-Hard-Hard or Soft-Hard-Hard)",
+      "pit_loss_seconds": 23,
+      "tire_degradation": "Medium-High",
+      "overtaking_difficulty": "Medium",
+      "safety_car_probability": "Medium",
+      "laps": 56,
+      "key_factor": "Bumpy track causes deg spikes; T1 braking zone main overtaking spot",
+      "compound_life": {
+        "soft": 13,
+        "medium": 23,
+        "hard": 34
+      }
+    },
+    {
+      "name": "Autodromo Hermanos Rodriguez",
+      "country": "Mexico",
+      "typical_strategy": "2-stop (Soft-Medium-Hard)",
+      "pit_loss_seconds": 22,
+      "tire_degradation": "Medium",
+      "overtaking_difficulty": "Medium",
+      "safety_car_probability": "Medium",
+      "laps": 71,
+      "key_factor": "High altitude reduces engine cooling; overheating can force earlier stops",
+      "compound_life": {
+        "soft": 15,
+        "medium": 26,
+        "hard": 38
+      }
+    },
+    {
+      "name": "Autodromo Jose Carlos Pace",
+      "country": "Brazil",
+      "typical_strategy": "1-stop or 2-stop; weather/SC often decides",
+      "pit_loss_seconds": 22,
+      "tire_degradation": "Medium",
+      "overtaking_difficulty": "High (Senna S + DRS)",
+      "safety_car_probability": "High",
+      "laps": 71,
+      "key_factor": "Rain very common; SC likely; classic undercut at S1 works well in clear air",
+      "compound_life": {
+        "soft": 16,
+        "medium": 27,
+        "hard": 38
+      }
+    },
+    {
+      "name": "Las Vegas Strip Circuit",
+      "country": "USA (Las Vegas)",
+      "typical_strategy": "2-stop (Soft-Medium-Hard)",
+      "pit_loss_seconds": 22,
+      "tire_degradation": "Medium (cold night temps)",
+      "overtaking_difficulty": "Medium",
+      "safety_car_probability": "High",
+      "laps": 50,
+      "key_factor": "Cold surface = tire warm-up crucial; SC common on new street layout",
+      "compound_life": {
+        "soft": 16,
+        "medium": 28,
+        "hard": 40
+      }
+    },
+    {
+      "name": "Lusail International Circuit",
+      "country": "Qatar",
+      "typical_strategy": "2-stop mandatory (Soft-Medium-Hard)",
+      "pit_loss_seconds": 22,
+      "tire_degradation": "Very High",
+      "overtaking_difficulty": "Medium",
+      "safety_car_probability": "Medium",
+      "laps": 57,
+      "key_factor": "Extreme tire deg from high-speed corners; 2-stop forced; blistering common",
+      "compound_life": {
+        "soft": 10,
+        "medium": 18,
+        "hard": 28
+      }
+    },
+    {
+      "name": "Yas Marina Circuit",
+      "country": "Abu Dhabi",
+      "typical_strategy": "1-stop (Medium-Hard)",
+      "pit_loss_seconds": 23,
+      "tire_degradation": "Low-Medium",
+      "overtaking_difficulty": "Medium",
+      "safety_car_probability": "Low",
+      "laps": 58,
+      "key_factor": "Low deg end-of-season track; tyre choice often sets up DRS train scenarios",
+      "compound_life": {
+        "soft": 18,
+        "medium": 30,
+        "hard": 43
+      }
+    }
+  ]
+}
