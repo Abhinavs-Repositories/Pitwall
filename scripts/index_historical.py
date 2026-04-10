@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.core.config import get_settings
-from src.core.logging import setup_logging
+from src.core.logging import configure_logging as setup_logging
 from src.data.cache import OpenF1Cache
 from src.data.openf1_client import OpenF1Client
 from src.rag.indexer import StrategyIndexer, build_historical_strategy, generate_strategy_summary

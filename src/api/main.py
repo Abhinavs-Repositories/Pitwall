@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import router as rest_router
 from src.api.websocket import router as ws_router
 from src.core.config import get_settings
-from src.core.logging import setup_logging
+from src.core.logging import configure_logging as setup_logging
 
 logger = logging.getLogger(__name__)
 

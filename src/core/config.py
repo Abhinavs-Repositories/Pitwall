@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # LLM model names
     groq_model: str = Field(default="llama-3.3-70b-versatile", description="Groq model ID")
     gemini_model: str = Field(default="gemini-2.5-flash", description="Gemini fallback model ID")
-    embedding_model: str = Field(default="models/text-embedding-004", description="Google embedding model")
+    embedding_model: str = Field(default="models/gemini-embedding-001", description="Google embedding model")
 
 
 @lru_cache(maxsize=1)

@@ -18,8 +18,8 @@ env/
 .env
 *.env
 
-# Data & cache (generated at runtime)
-data/
+# Data & cache (generated at runtime — only the top-level data/ dir, not src/data/)
+/data/
 *.db
 
 # Pytest / coverage

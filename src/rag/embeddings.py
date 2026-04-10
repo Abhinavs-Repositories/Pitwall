@@ -1,6 +1,7 @@
 """Google text-embedding-004 wrapper for generating vector embeddings.
 
 Free via Google AI Studio (GOOGLE_API_KEY). Dimension: 768.
+Uses the new google-genai SDK (google.genai).
 
 Usage::
 
@@ -14,35 +15,30 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
 
 from src.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Google text-embedding-004 produces 768-dimensional vectors
-EMBEDDING_DIM = 768
+# gemini-embedding-001 produces 3072-dimensional vectors
+EMBEDDING_DIM = 3072
 
 
-def _get_genai():
-    """Lazy import google.generativeai to avoid hard startup dependency."""
+def _get_client():
+    """Build a google.genai Client (new SDK)."""
     try:
-        import google.generativeai as genai
-        return genai
+        from google import genai
     except ImportError as exc:
         raise ImportError(
-            "google-generativeai is required for embeddings. "
-            "Run: pip install google-generativeai"
+            "google-genai is required for embeddings. "
+            "Run: pip install google-genai"
         ) from exc
 
-
-def _configure_genai() -> Any:
     settings = get_settings()
     if not settings.google_api_key:
         raise RuntimeError("GOOGLE_API_KEY is not set — embeddings unavailable")
-    genai = _get_genai()
-    genai.configure(api_key=settings.google_api_key)
-    return genai
+
+    return genai.Client(api_key=settings.google_api_key)
 
 
 def embed_texts_sync(texts: list[str]) -> list[list[float]]:
@@ -54,24 +50,23 @@ def embed_texts_sync(texts: list[str]) -> list[list[float]]:
     Returns:
         List of 768-dimensional float vectors, one per input text.
     """
-    genai = _configure_genai()
+    client = _get_client()
     settings = get_settings()
     model = settings.embedding_model
 
     results: list[list[float]] = []
-    # Batch in groups of 100 (API limit)
-    batch_size = 100
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i : i + batch_size]
+    # Embed one at a time (new SDK doesn't batch via list in embed_content)
+    for i, text in enumerate(texts):
         try:
-            response = genai.embed_content(
+            response = client.models.embed_content(
                 model=model,
-                content=batch,
-                task_type="RETRIEVAL_DOCUMENT",
+                contents=text,
             )
-            results.extend(response["embedding"] if isinstance(batch, list) else [response["embedding"]])
+            # New SDK returns EmbedContentResponse with .embeddings list
+            embedding = response.embeddings[0].values
+            results.append(list(embedding))
         except Exception as exc:
-            logger.error("Embedding failed for batch %d: %s", i // batch_size, exc)
+            logger.error("Embedding failed for text %d: %s", i, exc)
             raise
 
     logger.debug("Embedded %d texts", len(texts))
@@ -79,19 +74,15 @@ def embed_texts_sync(texts: list[str]) -> list[list[float]]:
 
 
 def embed_query_sync(query: str) -> list[float]:
-    """Synchronously embed a single query string for retrieval.
-
-    Uses RETRIEVAL_QUERY task type (slightly different representation than DOCUMENT).
-    """
-    genai = _configure_genai()
+    """Synchronously embed a single query string for retrieval."""
+    client = _get_client()
     settings = get_settings()
 
-    response = genai.embed_content(
+    response = client.models.embed_content(
         model=settings.embedding_model,
-        content=query,
-        task_type="RETRIEVAL_QUERY",
+        contents=query,
     )
-    return response["embedding"]
+    return list(response.embeddings[0].values)
 
 
 async def embed_texts(texts: list[str]) -> list[list[float]]:
