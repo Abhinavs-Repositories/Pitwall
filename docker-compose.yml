@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  # -------------------------------------------------------------------------
+  # FastAPI backend — serves the REST API and WebSocket on port 8000
+  # -------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: pitwall-ai-api
+    container_name: pitwall_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - SQLITE_DB_PATH=/app/data/cache.db
+      - CACHE_DIR=/app/data/cache
+      - LOG_LEVEL=INFO
+    volumes:
+      # Persist SQLite cache between restarts — avoids re-fetching OpenF1 data
+      - pitwall_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # -------------------------------------------------------------------------
+  # Streamlit frontend — serves the dashboard on port 8501
+  # -------------------------------------------------------------------------
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: pitwall-ai-ui
+    container_name: pitwall_ui
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      # Point frontend at the API service by name (Docker internal DNS)
+      - API_BASE=http://api:8000/api
+    depends_on:
+      api:
+        condition: service_healthy
+    command:
+      - "streamlit"
+      - "run"
+      - "src/ui/app.py"
+      - "--server.port=8501"
+      - "--server.address=0.0.0.0"
+      - "--server.headless=true"
+      - "--browser.gatherUsageStats=false"
+
+volumes:
+  pitwall_data:
+    driver: local
