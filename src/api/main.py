@@ -13,6 +13,7 @@ Run with:
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -74,13 +75,18 @@ def create_app() -> FastAPI:
     )
 
     # CORS — allow Streamlit frontend + local dev
+    cors_origins = [
+        "http://localhost:8501",  # Streamlit default
+        "http://127.0.0.1:8501",
+        "http://localhost:3000",  # Future React fallback
+    ]
+    extra_origins = settings.cors_origins if hasattr(settings, "cors_origins") and settings.cors_origins else os.environ.get("CORS_ORIGINS", "")
+    if extra_origins:
+        origins_str = extra_origins if isinstance(extra_origins, str) else ",".join(extra_origins)
+        cors_origins.extend([o.strip() for o in origins_str.split(",") if o.strip()])
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:8501",  # Streamlit default
-            "http://127.0.0.1:8501",
-            "http://localhost:3000",  # Future React fallback
-        ],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
