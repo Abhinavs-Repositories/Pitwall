@@ -1,0 +1,32 @@
+services:
+  # ── FastAPI Backend ──────────────────────────────────────────────
+  - type: web
+    name: pitwall-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # you'll set this manually in the Render dashboard
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false          # set to your Streamlit service URL after first deploy
+      - key: LOG_LEVEL
+        value: INFO
+
+  # ── Streamlit Frontend ──────────────────────────────────────────
+  - type: web
+    name: pitwall-ui
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run src/ui/app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    envVars:
+      - key: API_BASE
+        sync: false          # set to https://pitwall-api.onrender.com/api after backend deploys
