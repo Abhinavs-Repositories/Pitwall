@@ -87,11 +87,13 @@ User question
 
 - **Natural language strategy Q&A** — ask anything, get a pit wall-style answer
 - **Live race data** — lap times, tire compounds, gap to leader, pit history via OpenF1
-- **Tire degradation modelling** — per-stint deg rate, laps-to-cliff estimate, compound comparison
+- **Tire degradation modelling** — fuel-corrected per-stint deg rate, laps-to-cliff estimate, compound comparison
 - **Weather monitoring** — rain threat detection, temperature trend analysis
 - **RAG over historical races** — 2023-2025 winning strategies indexed and retrievable by similarity
 - **Track characteristics** — 24 circuits with pit loss times, safety car probability, typical strategy
 - **Lap replay** — scrub to any lap of any race and ask strategy questions as if you're live
+- **Query-aware context building** — the explainer receives only the data relevant to each query type (race status, tire analysis, weather, strategy, comparison, historical), with pit stop history and stint details included where applicable
+- **Off-topic detection** — out-of-domain questions are caught by the router and short-circuited without burning agent pipeline resources
 - **Structured recommendations** — every strategy response includes a typed `StrategyRecommendation` with confidence, compound, and pit window
 - **SQLite caching** — OpenF1 responses are cached locally so historical queries are instant
 
@@ -225,7 +227,7 @@ pitwall-ai/
 ├── scripts/
 │   ├── seed_tracks.py         # One-time: load 24 circuit profiles into Qdrant
 │   └── index_historical.py    # One-time: index race strategies from OpenF1 into Qdrant
-├── tests/               # pytest suite (91 tests)
+├── tests/               # pytest suite (156 tests)
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -242,7 +244,7 @@ pytest tests/test_agents.py -v
 pytest -k "test_strategy"
 ```
 
-The test suite uses `pytest-httpx` to mock OpenF1 API calls — no network access required.
+The test suite uses `pytest-httpx` to mock OpenF1 API calls and shared fixtures from `conftest.py` for race state, driver state, and strategy data — no network access or API keys required.
 
 ---
 
@@ -250,13 +252,16 @@ The test suite uses `pytest-httpx` to mock OpenF1 API calls — no network acces
 
 The **Strategy** agent uses pure-Python calculations (no LLM) to produce recommendations:
 
-1. **Tire degradation** — fits a linear model to lap times within the current stint, excluding safety car laps, to estimate deg rate (s/lap) and projected laps until the tire cliff
-2. **Pit window** — calculates the lap range where the compound's useful life ends, accounting for track-specific pit loss time
-3. **Undercut/overcut viability** — checks gap to the car ahead/behind against the predicted time gain from fresher tires
+1. **Tire degradation** — fits a fuel-corrected linear model to lap times within the current stint (adding back ~0.06 s/lap fuel burn effect), excluding warm-up laps, pit in/out laps, safety car laps, and outliers, to estimate true deg rate (s/lap) and projected laps until the tire cliff
+2. **Pit window** — calculates the lap range where the compound's useful life ends, accounting for track-specific pit loss time and cliff proximity
+3. **Undercut/overcut viability** — checks gap to the car ahead/behind against the predicted time gain from fresher tires, factoring in the rival's degradation rate
 4. **Weather factor** — flags rain threats that would make an intermediate/wet switch urgent regardless of tire age
-5. **Confidence scoring** — combines data quality (laps in stint, gap history) and strategic clarity into a 0–1 confidence score
+5. **Compound recommendation** — selects the optimal next compound based on remaining laps, track temperature, rain status, and available tire sets
+6. **Confidence scoring** — combines data quality (laps in stint, gap history) and strategic clarity into a 0–1 confidence score
 
 The **RAG** agent retrieves the 3 most relevant historical races from Qdrant using semantic similarity on the query + track name, then passes them as context to the **Explainer** to ground its answer in real precedent.
+
+The **Explainer** agent builds query-type-specific context prompts — for example, a strategy query receives standings, pit stop history with compound transitions, tire degradation data, weather conditions, and the strategy recommendation, while a simple race status question only gets standings and lap count. This keeps LLM prompts focused and reduces hallucination.
 
 ---
 
