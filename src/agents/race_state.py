@@ -33,9 +33,8 @@ async def race_state_node(state: AgentState) -> dict[str, Any]:
                 up_to_lap=current_lap or None,
             )
 
-        agents_used = list(state.agents_used) + ["race_state"]
-        return {"race_state": race_state, "agents_used": agents_used}
+        return {"race_state": race_state, "agents_used": ["race_state"]}
 
     except Exception as exc:
         logger.error("race_state_node failed: %s", exc, exc_info=True)
-        return {"errors": state.errors + [f"Race state fetch error: {exc}"]}
+        return {"errors": [f"Race state fetch error: {exc}"]}

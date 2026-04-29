@@ -202,8 +202,14 @@ class TestWeatherDetection:
 
 
 class TestRecommendCompound:
-    def test_rain_always_wet(self):
-        w = _make_weather(rainfall=True)
+    def test_rain_warm_track_intermediate(self):
+        # Warm track (42°C > 25°C) + rain → INTERMEDIATE (light rain scenario)
+        w = _make_weather(rainfall=True, track_temp=42.0)
+        assert recommend_compound(20, w) == TireCompound.INTERMEDIATE
+
+    def test_rain_cold_track_wet(self):
+        # Cold track (20°C ≤ 25°C) + rain → WET (heavy rain scenario)
+        w = _make_weather(rainfall=True, track_temp=20.0)
         assert recommend_compound(20, w) == TireCompound.WET
 
     def test_few_laps_prefers_soft(self):
@@ -279,17 +285,26 @@ class TestCalculateOptimalPitWindow:
 
 
 class TestEvaluateUndercut:
-    def _expected_net_loss(self) -> float:
-        return DEFAULT_PIT_LOSS_S - FRESH_TIRE_GAIN_PER_LAP_S * FRESH_TIRE_ADVANTAGE_LAPS
+    def _fresh_gain(self) -> float:
+        return FRESH_TIRE_GAIN_PER_LAP_S * FRESH_TIRE_ADVANTAGE_LAPS  # 2.4s
 
     def test_viable_when_gap_small(self):
-        driver = _make_driver(number=2, position=2, gap_to_ahead=5.0)
+        # Gap 1.5s < fresh_gain 2.4s → undercut viable
+        driver = _make_driver(number=2, position=2, gap_to_ahead=1.5)
         car_ahead = _make_driver(number=1, position=1)
         viable, _ = evaluate_undercut(driver, car_ahead, None, None)
         assert viable is True
 
     def test_not_viable_when_gap_large(self):
+        # Gap 30s >> fresh_gain 2.4s → not viable
         driver = _make_driver(number=2, position=2, gap_to_ahead=30.0)
+        car_ahead = _make_driver(number=1, position=1)
+        viable, _ = evaluate_undercut(driver, car_ahead, None, None)
+        assert viable is False
+
+    def test_not_viable_gap_exceeds_fresh_gain(self):
+        # Gap 5s > fresh_gain 2.4s → not viable (was wrongly viable in old code)
+        driver = _make_driver(number=2, position=2, gap_to_ahead=5.0)
         car_ahead = _make_driver(number=1, position=1)
         viable, _ = evaluate_undercut(driver, car_ahead, None, None)
         assert viable is False
@@ -301,19 +316,17 @@ class TestEvaluateUndercut:
         assert viable is False
         assert "unknown" in reason.lower()
 
-    def test_deg_advantage_overrides_marginal_gap(self):
-        # Gap is just above viable threshold but driver is degrading much faster
-        net_loss = self._expected_net_loss()
-        driver = _make_driver(number=2, position=2, gap_to_ahead=net_loss + 0.5)
+    def test_deg_ahead_increases_effective_gain(self):
+        # Gap 3.0s, fresh_gain 2.4s, but car ahead degrades at 0.3s/lap
+        # effective_gain = 2.4 + 0.3*3 = 3.3s > 3.0s → viable
+        driver = _make_driver(number=2, position=2, gap_to_ahead=3.0)
         car_ahead = _make_driver(number=1, position=1)
-        deg_driver = _make_deg(deg_rate=0.25)  # fast degrading
-        deg_ahead = _make_deg(deg_rate=0.05)   # slow degrading
-        viable, _ = evaluate_undercut(driver, car_ahead, deg_driver, deg_ahead)
+        deg_ahead = _make_deg(deg_rate=0.3)
+        viable, _ = evaluate_undercut(driver, car_ahead, None, deg_ahead)
         assert viable is True
 
     def test_reasoning_mentions_driver_name(self):
-        driver = _make_driver(number=2, position=2, gap_to_ahead=5.0)
-        car_ahead = _make_driver(number=1, position=1)
+        driver = _make_driver(number=2, position=2, gap_to_ahead=1.5)
         car_ahead = DriverState(
             driver_number=1, name="Verstappen", team="RB", position=1,
             tire_compound=TireCompound.HARD,
@@ -328,28 +341,32 @@ class TestEvaluateUndercut:
 
 
 class TestEvaluateOvercut:
-    def test_viable_when_gap_large(self):
-        driver = _make_driver(number=1, position=1)
-        car_behind = _make_driver(number=2, position=2, gap_to_ahead=30.0)
-        race = _make_race_state()
-        viable, _ = evaluate_overcut(driver, car_behind, None, None, race)
-        assert viable is True
-
-    def test_risky_when_gap_small(self):
+    def test_viable_when_gap_small(self):
+        # Gap 5s < pit_loss 22s → car behind loses more from pitting than we
+        # lose from staying out on old tires → overcut viable
         driver = _make_driver(number=1, position=1)
         car_behind = _make_driver(number=2, position=2, gap_to_ahead=5.0)
         race = _make_race_state()
         viable, _ = evaluate_overcut(driver, car_behind, None, None, race)
+        assert viable is True
+
+    def test_not_viable_when_gap_exceeds_net_advantage(self):
+        # Gap 30s > pit_loss 22s → even after they pit, gap is too large
+        driver = _make_driver(number=1, position=1)
+        car_behind = _make_driver(number=2, position=2, gap_to_ahead=30.0)
+        race = _make_race_state()
+        viable, _ = evaluate_overcut(driver, car_behind, None, None, race)
         assert viable is False
 
-    def test_viable_due_to_high_deg_behind(self):
+    def test_driver_deg_reduces_overcut_margin(self):
+        # Gap 20s, pit_loss 22s, but our deg is 0.5s/lap * 2 extra laps = 1s
+        # net_advantage = 22 - 1 = 21 > 20 → still viable
         driver = _make_driver(number=1, position=1)
-        car_behind = _make_driver(number=2, position=2, gap_to_ahead=15.0)
+        car_behind = _make_driver(number=2, position=2, gap_to_ahead=20.0)
         race = _make_race_state()
-        deg_behind = _make_deg(deg_rate=0.35)  # very high
-        viable, reason = evaluate_overcut(driver, car_behind, None, deg_behind, race)
+        deg_driver = _make_deg(deg_rate=0.5)
+        viable, _ = evaluate_overcut(driver, car_behind, deg_driver, None, race)
         assert viable is True
-        assert "degrading" in reason.lower()
 
     def test_not_viable_unknown_gap(self):
         driver = _make_driver(number=1, position=1)
@@ -401,8 +418,8 @@ class TestBuildStrategyRecommendation:
         assert 0.0 <= rec.confidence <= 1.0
 
     def test_undercut_flag_set_when_viable(self):
-        # Driver 2 is 5 s behind leader — undercut should be viable
-        driver = _make_driver(number=2, position=2, gap_to_ahead=5.0)
+        # Driver 2 is 1.5s behind leader — within fresh tire gain (~2.4s)
+        driver = _make_driver(number=2, position=2, gap_to_ahead=1.5)
         leader = _make_driver(number=1, position=1)
         race = _make_race_state(drivers=[leader, driver])
         rec = build_strategy_recommendation(driver, race, None, [_make_weather()])

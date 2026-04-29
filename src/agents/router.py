@@ -15,9 +15,9 @@ from src.core.llm import get_llm
 
 logger = logging.getLogger(__name__)
 
-# Canonical query types
+# Canonical query types (includes off_topic for out-of-domain queries)
 QUERY_TYPES = frozenset(
-    ["race_status", "tire_analysis", "weather", "strategy", "comparison", "historical"]
+    ["race_status", "tire_analysis", "weather", "strategy", "comparison", "historical", "off_topic"]
 )
 
 # Well-known driver number → name mappings for mention extraction
@@ -52,21 +52,25 @@ Categories:
 - strategy: pit stop recommendations, when to pit, undercut/overcut, compound choice
 - comparison: comparing two or more drivers (pace, tires, strategy)
 - historical: past race results, historical strategies, track records
+- off_topic: not related to F1 racing or strategy (jokes, general knowledge, greetings)
 
-User message: "{message}"
+{history_context}User message: "{message}"
 
 Respond with ONLY the category name, nothing else."""
 
 
-def router_node(state: AgentState) -> dict[str, Any]:
+async def router_node(state: AgentState) -> dict[str, Any]:
     """LangGraph node: classify query and extract driver mentions."""
     message = state.user_message.strip()
 
     # Extract driver numbers from the message text
     target_drivers = _extract_drivers(message)
 
-    # LLM classification
-    query_type = _classify(message)
+    # Build recent conversation context for follow-up resolution
+    history_context = _format_recent_history(state.conversation_history)
+
+    # LLM classification (async)
+    query_type = await _classify(message, history_context)
 
     return {
         "query_type": query_type,
@@ -75,12 +79,12 @@ def router_node(state: AgentState) -> dict[str, Any]:
     }
 
 
-def _classify(message: str) -> str:
+async def _classify(message: str, history_context: str = "") -> str:
     """Use LLM to classify the query. Falls back to rule-based on LLM failure."""
     try:
         llm = get_llm()
-        prompt = _CLASSIFICATION_PROMPT.format(message=message)
-        response = llm.invoke(prompt)
+        prompt = _CLASSIFICATION_PROMPT.format(message=message, history_context=history_context)
+        response = await llm.ainvoke(prompt)
         result = str(response.content).strip().lower()
         if result in QUERY_TYPES:
             return result
@@ -96,14 +100,22 @@ def _rule_based_classify(message: str) -> str:
 
     if any(kw in lower for kw in ("pit", "stop", "undercut", "overcut", "compound", "strategy", "recommend")):
         return "strategy"
+    if any(kw in lower for kw in ("compare", "vs", "versus", "difference between", "better than")):
+        return "comparison"
     if any(kw in lower for kw in ("tire", "tyre", "degrad", "cliff", "wear", "compound", "stint")):
         return "tire_analysis"
     if any(kw in lower for kw in ("weather", "rain", "temperature", "wet", "dry", "humidity")):
         return "weather"
-    if any(kw in lower for kw in ("compare", "vs", "versus", "difference between", "better than")):
-        return "comparison"
     if any(kw in lower for kw in ("last year", "2023", "2024", "historical", "previous", "won", "winner")):
         return "historical"
+
+    # Check for F1-related keywords before defaulting
+    f1_keywords = (
+        "lap", "race", "gp", "grand prix", "position", "gap", "drs", "safety car",
+        "red flag", "grid", "qualify", "sector", "fastest", "overtake", "defend",
+    )
+    if not any(kw in lower for kw in f1_keywords):
+        return "off_topic"
 
     return "race_status"
 
@@ -118,10 +130,27 @@ def _extract_drivers(message: str) -> list[int]:
         if re.search(rf"\b{re.escape(name)}\b", lower):
             found.add(number)
 
-    # Also match explicit driver numbers like "#1" or "driver 1"
-    for match in re.finditer(r"\b(?:driver\s+)?(\d{1,2})\b", lower):
+    # Match explicit driver references: "#1", "driver 1", "no. 44"
+    # Requires explicit context to avoid matching "lap 45", "top 10", etc.
+    for match in re.finditer(r"\b(?:driver|#|no\.?)\s*(\d{1,2})\b", lower):
         num = int(match.group(1))
         if 1 <= num <= 99:
             found.add(num)
 
     return sorted(found)
+
+
+def _format_recent_history(history: list[dict[str, Any]], max_turns: int = 3) -> str:
+    """Format the last few conversation turns for the classification prompt."""
+    if not history:
+        return ""
+    recent = history[-max_turns:]
+    lines = []
+    for msg in recent:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        # Truncate long messages to keep prompt compact
+        if len(content) > 150:
+            content = content[:150] + "..."
+        lines.append(f"  {role}: {content}")
+    return "Recent conversation:\n" + "\n".join(lines) + "\n\n"

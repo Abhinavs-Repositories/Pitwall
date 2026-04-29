@@ -20,15 +20,14 @@ def strategy_node(state: AgentState) -> dict[str, Any]:
     """LangGraph node: build StrategyRecommendation for target drivers."""
     race_state = state.race_state
     if not race_state:
-        return {"errors": state.errors + ["strategy_node: no race_state"]}
+        return {"errors": ["strategy_node: no race_state"]}
 
     # Which drivers to recommend for
     if state.target_drivers:
         target = [d for d in race_state.drivers if d.driver_number in state.target_drivers]
     else:
-        # Default: all drivers, capped at top 10 to avoid huge state
-        sorted_drivers = sorted(race_state.drivers, key=lambda d: d.position)
-        target = sorted_drivers[:10]
+        # Default: all drivers on the grid
+        target = sorted(race_state.drivers, key=lambda d: d.position)
 
     recommendations: dict[str, StrategyRecommendation] = {}
 
@@ -53,9 +52,7 @@ def strategy_node(state: AgentState) -> dict[str, Any]:
                 exc,
             )
 
-    agents_used = list(state.agents_used) + ["strategy"]
-
     return {
         "strategy_recommendations": recommendations,
-        "agents_used": agents_used,
+        "agents_used": ["strategy"],
     }

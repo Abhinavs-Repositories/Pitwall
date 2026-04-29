@@ -3,13 +3,14 @@
 Historical F1 data never changes, so we cache aggressively:
 - Key   = (endpoint, frozenset of query params)
 - Value = JSON-serialised response body
-- TTL   = None (historical data is immutable; live data not supported)
+- TTL   = None for finished sessions (immutable historical data)
+         30 s for live sessions (data changes every lap)
 """
 
 import hashlib
 import json
 import logging
-import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,11 @@ import aiosqlite
 from src.core.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# TTL for live-session cache entries (seconds).
+# Live data changes every few seconds; 30s is a reasonable balance between
+# freshness and not hammering the OpenF1 API.
+LIVE_SESSION_TTL_S: float = 30.0
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS api_cache (
@@ -29,10 +35,10 @@ CREATE TABLE IF NOT EXISTS api_cache (
 );
 """
 
-_GET = "SELECT response FROM api_cache WHERE cache_key = ?;"
+_GET = "SELECT response, created_at FROM api_cache WHERE cache_key = ?;"
 _SET = """
-INSERT OR REPLACE INTO api_cache (cache_key, endpoint, params_hash, response)
-VALUES (?, ?, ?, ?);
+INSERT OR REPLACE INTO api_cache (cache_key, endpoint, params_hash, response, created_at)
+VALUES (?, ?, ?, ?, ?);
 """
 
 
@@ -57,6 +63,8 @@ class OpenF1Cache:
         """Open the database and create tables if required."""
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = await aiosqlite.connect(self._db_path)
+        # Enable WAL mode for better concurrent read performance
+        await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute(_CREATE_TABLE)
         await self._conn.commit()
         logger.info("Cache initialised", extra={"db_path": self._db_path})
@@ -70,24 +78,50 @@ class OpenF1Cache:
     # Public interface
     # ------------------------------------------------------------------
 
-    async def get(self, endpoint: str, params: dict[str, Any]) -> Any | None:
-        """Return cached response data, or None on cache miss."""
+    async def get(
+        self,
+        endpoint: str,
+        params: dict[str, Any],
+        *,
+        session_status: str | None = None,
+    ) -> Any | None:
+        """Return cached response data, or None on cache miss.
+
+        Args:
+            endpoint:       The API endpoint being cached.
+            params:         Query parameters for the endpoint.
+            session_status: If provided and != "Finished", apply TTL-based
+                            expiry so live-session data stays fresh.
+        """
         self._ensure_open()
         cache_key, _ = _make_key(endpoint, params)
         async with self._conn.execute(_GET, (cache_key,)) as cursor:  # type: ignore[union-attr]
             row = await cursor.fetchone()
-        if row:
-            logger.debug("Cache hit", extra={"endpoint": endpoint, "params": params})
-            return json.loads(row[0])
-        logger.debug("Cache miss", extra={"endpoint": endpoint, "params": params})
-        return None
+        if row is None:
+            logger.debug("Cache miss", extra={"endpoint": endpoint, "params": params})
+            return None
+
+        response_data, created_at = row[0], row[1]
+
+        # For live sessions, check TTL
+        if session_status and session_status != "Finished":
+            age = time.time() - created_at
+            if age > LIVE_SESSION_TTL_S:
+                logger.debug(
+                    "Cache expired (live session)",
+                    extra={"endpoint": endpoint, "age_s": round(age, 1)},
+                )
+                return None
+
+        logger.debug("Cache hit", extra={"endpoint": endpoint, "params": params})
+        return json.loads(response_data)
 
     async def set(self, endpoint: str, params: dict[str, Any], data: Any) -> None:
         """Persist a response to the cache."""
         self._ensure_open()
         cache_key, params_hash = _make_key(endpoint, params)
         await self._conn.execute(  # type: ignore[union-attr]
-            _SET, (cache_key, endpoint, params_hash, json.dumps(data))
+            _SET, (cache_key, endpoint, params_hash, json.dumps(data), time.time())
         )
         await self._conn.commit()  # type: ignore[union-attr]
         logger.debug("Cache stored", extra={"endpoint": endpoint, "cache_key": cache_key})

@@ -2,6 +2,17 @@
 
 import pytest
 
+from src.data.models import (
+    DriverState,
+    LapData,
+    PitStop,
+    RaceControlMessage,
+    RaceState,
+    Stint,
+    TireCompound,
+    WeatherState,
+)
+
 # ---------------------------------------------------------------------------
 # Raw OpenF1 API response fixtures
 # ---------------------------------------------------------------------------
@@ -147,3 +158,79 @@ def raw_race_control() -> list[dict]:
             "session_key": 9158,
         },
     ]
+
+
+# ---------------------------------------------------------------------------
+# Hydrated model fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def sample_race_state() -> RaceState:
+    """A minimal but realistic RaceState with 3 drivers for agent tests."""
+    drivers = [
+        DriverState(
+            driver_number=1,
+            name="Max Verstappen",
+            team="Red Bull Racing",
+            position=1,
+            gap_to_leader=0.0,
+            gap_to_ahead=None,
+            last_lap_time=95.5,
+            tire_compound=TireCompound.HARD,
+            stint_length=7,
+            stints=[
+                Stint(stint_number=1, compound=TireCompound.MEDIUM, lap_start=1, lap_end=27, tyre_age_at_start=0),
+                Stint(stint_number=2, compound=TireCompound.HARD, lap_start=28, lap_end=34, tyre_age_at_start=0),
+            ],
+            lap_times=[LapData(lap_number=i, lap_time=95.5 + i * 0.05) for i in range(1, 35)],
+        ),
+        DriverState(
+            driver_number=4,
+            name="Lando Norris",
+            team="McLaren",
+            position=2,
+            gap_to_leader=4.231,
+            gap_to_ahead=4.231,
+            last_lap_time=96.1,
+            tire_compound=TireCompound.HARD,
+            stint_length=16,
+            stints=[
+                Stint(stint_number=1, compound=TireCompound.SOFT, lap_start=1, lap_end=18, tyre_age_at_start=0),
+                Stint(stint_number=2, compound=TireCompound.HARD, lap_start=19, lap_end=34, tyre_age_at_start=0),
+            ],
+            lap_times=[LapData(lap_number=i, lap_time=96.0 + i * 0.06) for i in range(1, 35)],
+        ),
+        DriverState(
+            driver_number=16,
+            name="Charles Leclerc",
+            team="Ferrari",
+            position=3,
+            gap_to_leader=8.015,
+            gap_to_ahead=3.784,
+            last_lap_time=96.4,
+            tire_compound=TireCompound.HARD,
+            stint_length=14,
+            stints=[
+                Stint(stint_number=1, compound=TireCompound.MEDIUM, lap_start=1, lap_end=20, tyre_age_at_start=0),
+                Stint(stint_number=2, compound=TireCompound.HARD, lap_start=21, lap_end=34, tyre_age_at_start=0),
+            ],
+            lap_times=[LapData(lap_number=i, lap_time=96.2 + i * 0.055) for i in range(1, 35)],
+        ),
+    ]
+    return RaceState(
+        session_key=9158,
+        meeting_name="Bahrain Grand Prix",
+        track_name="Bahrain International Circuit",
+        current_lap=34,
+        total_laps=57,
+        drivers=drivers,
+        weather=WeatherState(
+            air_temp=28.4,
+            track_temp=42.1,
+            humidity=44.5,
+            rainfall=False,
+            wind_speed=3.2,
+            wind_direction=180,
+        ),
+    )

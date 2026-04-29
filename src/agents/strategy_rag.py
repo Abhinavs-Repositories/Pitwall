@@ -50,12 +50,10 @@ async def strategy_rag_node(state: AgentState) -> dict[str, Any]:
             if data:
                 track_chars = data
 
-        agents_used = list(state.agents_used) + ["strategy_rag"]
-
         return {
             "historical_context": historical,
             "track_characteristics": track_chars,
-            "agents_used": agents_used,
+            "agents_used": ["strategy_rag"],
         }
 
     except Exception as exc:
@@ -63,8 +61,8 @@ async def strategy_rag_node(state: AgentState) -> dict[str, Any]:
         return {
             "historical_context": [],
             "track_characteristics": {},
-            "errors": state.errors + [f"RAG error: {exc}"],
-            "agents_used": list(state.agents_used) + ["strategy_rag"],
+            "errors": [f"RAG error: {exc}"],
+            "agents_used": ["strategy_rag"],
         }
 
     finally:

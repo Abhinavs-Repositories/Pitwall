@@ -54,10 +54,10 @@ class AgentState(BaseModel):
 
     # ---- Explainer agent output (final) ----
     final_response: str = ""
-    agents_used: list[str] = Field(default_factory=list)
+    agents_used: Annotated[list[str], operator.add] = Field(default_factory=list)
 
     # ---- Error handling ----
-    errors: list[str] = Field(default_factory=list)
+    errors: Annotated[list[str], operator.add] = Field(default_factory=list)
 
     class Config:
         arbitrary_types_allowed = True

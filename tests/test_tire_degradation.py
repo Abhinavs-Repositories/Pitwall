@@ -84,9 +84,10 @@ def test_linear_regression_perfect_fit():
 
     x = np.array([0.0, 1.0, 2.0, 3.0])
     y = np.array([95.0, 95.1, 95.2, 95.3])
-    slope, intercept = _linear_regression(x, y)
+    slope, intercept, r_squared = _linear_regression(x, y)
     assert slope == pytest.approx(0.1, abs=1e-6)
     assert intercept == pytest.approx(95.0, abs=1e-4)
+    assert r_squared == pytest.approx(1.0, abs=1e-6)
 
 
 def test_linear_regression_flat():
@@ -94,7 +95,7 @@ def test_linear_regression_flat():
 
     x = np.array([0.0, 1.0, 2.0, 3.0])
     y = np.array([95.0, 95.0, 95.0, 95.0])
-    slope, intercept = _linear_regression(x, y)
+    slope, intercept, r_squared = _linear_regression(x, y)
     assert slope == pytest.approx(0.0, abs=1e-6)
 
 
@@ -103,8 +104,9 @@ def test_linear_regression_single_point():
 
     x = np.array([0.0])
     y = np.array([95.0])
-    slope, intercept = _linear_regression(x, y)
+    slope, intercept, r_squared = _linear_regression(x, y)
     assert slope == 0.0
+    assert r_squared == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +187,8 @@ def test_calculate_degradation_basic():
     result = calculate_degradation(laps, stint)
     assert result is not None
     assert result.compound == TireCompound.MEDIUM
-    assert result.deg_rate_per_lap == pytest.approx(0.1, abs=0.01)
+    # Raw slope is 0.1, fuel correction adds ~0.06 → measured deg ~0.16
+    assert result.deg_rate_per_lap == pytest.approx(0.16, abs=0.02)
 
 
 def test_calculate_degradation_cliff_predicted():
@@ -198,10 +201,22 @@ def test_calculate_degradation_cliff_predicted():
     assert result.predicted_cliff_lap > 1
 
 
-def test_calculate_degradation_flat_no_cliff():
-    # Zero degradation → no cliff
+def test_calculate_degradation_flat_has_fuel_corrected_slope():
+    # Zero raw degradation, but fuel correction adds ~0.06s/lap.
+    # This represents tires that are actually degrading at the fuel burn rate
+    # but the raw times look flat because fuel improvement masks it.
     stint = _make_stint(lap_start=1, lap_end=30)
     laps = _make_laps(1, 30, base_time=95.0, slope=0.0)
+    result = calculate_degradation(laps, stint)
+    assert result is not None
+    # Fuel correction reveals hidden degradation of ~0.06s/lap
+    assert result.deg_rate_per_lap == pytest.approx(0.06, abs=0.01)
+
+
+def test_calculate_degradation_improving_pace_no_cliff():
+    # Negative raw slope (pace improving faster than fuel effect) → no cliff
+    stint = _make_stint(lap_start=1, lap_end=30)
+    laps = _make_laps(1, 30, base_time=95.0, slope=-0.1)
     result = calculate_degradation(laps, stint)
     assert result is not None
     assert result.predicted_cliff_lap is None

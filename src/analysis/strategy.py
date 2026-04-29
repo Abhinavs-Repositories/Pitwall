@@ -88,8 +88,8 @@ def calculate_optimal_pit_window(
         cliff = deg.predicted_cliff_lap
         # Pit 1 lap before cliff (pro-active) but respect window bounds
         ideal = max(earliest_viable, min(cliff - 1, latest_viable))
-        earliest = max(earliest_viable, cliff - 3)
-        latest = min(latest_viable, cliff + 2)
+        earliest = max(earliest_viable, cliff - 4)
+        latest = min(latest_viable, cliff - 1)  # always pit before the cliff
     else:
         # No cliff data — default to pitting at ~60–70 % of laps remaining
         offset = max(1, int(laps_remaining * 0.35))
@@ -111,46 +111,50 @@ def evaluate_undercut(
 
     Returns (is_viable, reasoning_string).
 
-    Undercut is viable when:
-    - Gap to car ahead < pit_loss − (fresh_tire_gain × FRESH_TIRE_ADVANTAGE_LAPS)
-    - Driver's tires are more degraded than car ahead's (bigger gain from fresh rubber)
+    Undercut mechanics: you pit first, spend ~22s in the pit lane, then do
+    2-3 laps on fresh rubber gaining ~0.8s/lap vs the car ahead on worn
+    tires.  The undercut works when the gap to the car ahead is *less* than
+    the total fresh-tire advantage you'll accumulate — i.e. the gap is small
+    enough that the pace delta lets you jump them before they pit.
 
-    Standard F1 undercut math:
-        fresh_gain_total = FRESH_TIRE_GAIN_PER_LAP_S × FRESH_TIRE_ADVANTAGE_LAPS
-        net_pit_loss     = pit_loss − fresh_gain_total
-        undercut_viable  = gap_to_ahead < net_pit_loss
+    Additionally, if the car ahead has higher degradation, their lap times
+    worsen each lap they stay out, adding to the effective gain.
     """
     gap = driver.gap_to_ahead
     if gap is None:
         return False, "Gap to car ahead unknown — cannot evaluate undercut"
 
     fresh_gain_total = FRESH_TIRE_GAIN_PER_LAP_S * FRESH_TIRE_ADVANTAGE_LAPS
-    net_pit_loss = pit_loss - fresh_gain_total
 
-    viable = gap < net_pit_loss
-
-    # Degradation edge: if driver is degrading faster, the gain is larger
+    # Add degradation delta: if car ahead is degrading, they lose extra time
+    # while you're on fresh rubber
+    deg_extra = 0.0
     deg_advantage = ""
+    if deg_ahead and deg_ahead.deg_rate_per_lap > 0:
+        deg_extra = deg_ahead.deg_rate_per_lap * FRESH_TIRE_ADVANTAGE_LAPS
     if deg_driver and deg_ahead:
         delta_deg = deg_driver.deg_rate_per_lap - deg_ahead.deg_rate_per_lap
         if delta_deg > 0.05:
-            viable = True  # tire condition seals the deal even if gap is marginal
             deg_advantage = (
                 f" Driver degrading {delta_deg:.2f}s/lap faster than car ahead — "
                 f"extra incentive to pit."
             )
 
+    effective_gain = fresh_gain_total + deg_extra
+    viable = gap < effective_gain
+
     if viable:
         reasoning = (
             f"Undercut viable: gap to {car_ahead.name} is {gap:.2f}s, "
-            f"net pit loss ~{net_pit_loss:.1f}s (pit loss {pit_loss:.0f}s − "
-            f"fresh tire gain ~{fresh_gain_total:.1f}s over {FRESH_TIRE_ADVANTAGE_LAPS} laps)."
+            f"fresh tire advantage ~{effective_gain:.1f}s over "
+            f"{FRESH_TIRE_ADVANTAGE_LAPS} laps "
+            f"(pace gain {fresh_gain_total:.1f}s + deg advantage {deg_extra:.1f}s)."
             + deg_advantage
         )
     else:
         reasoning = (
             f"Undercut not viable: gap to {car_ahead.name} is {gap:.2f}s, "
-            f"but net pit loss is ~{net_pit_loss:.1f}s — would emerge behind."
+            f"exceeds fresh tire advantage of ~{effective_gain:.1f}s."
         )
 
     return viable, reasoning
@@ -166,38 +170,48 @@ def evaluate_overcut(
 ) -> tuple[bool, str]:
     """Determine if staying out (overcut) while car behind pits is viable.
 
-    Overcut is viable when:
-    - Driver's tires still have more pace to give than the pit-loss delta.
-    - Car behind's fresh tires won't close the gap before driver pits next lap.
+    Overcut mechanics: the car behind pits first and loses ~22s in the pit
+    lane.  You stay out for 1-2 extra laps on old tires, losing deg_rate
+    per lap.  Then you pit yourself.  The overcut works when the car
+    behind loses more time from their pit stop than you lose from staying
+    out on degrading tires — i.e. you emerge ahead after you both pit.
 
-    This is a simplified model: overcut probability = gap_to_behind > pit_loss.
+    Viable when: gap_to_behind < pit_loss - our_time_loss_from_extra_laps
+    (the gap is small enough that their pit loss puts them behind you, and
+    your tire degradation over the extra laps doesn't erase that advantage).
     """
     gap = car_behind.gap_to_ahead  # gap from car_behind to driver
     if gap is None:
         return False, "Gap to car behind unknown — cannot evaluate overcut"
 
-    viable = gap > pit_loss
+    extra_laps = 2
+    our_time_loss = (deg_driver.deg_rate_per_lap * extra_laps) if deg_driver else 0.0
+    net_advantage = pit_loss - our_time_loss
 
-    # If car behind is degrading badly, they lose time before they can attack
+    viable = gap < net_advantage
+
+    # If car behind is degrading badly, their out-lap on cold tires is even
+    # slower, making the overcut stronger
     deg_boost = ""
     if deg_behind and deg_behind.deg_rate_per_lap > 0.2:
-        viable = True
         deg_boost = (
             f" Car behind degrading at {deg_behind.deg_rate_per_lap:.2f}s/lap "
-            f"— overcut gains time naturally."
+            f"— their out-lap will be slow on cold tires."
         )
 
     if viable:
         reasoning = (
-            f"Overcut viable: {car_behind.name} is {gap:.2f}s behind — "
-            f"more than the ~{pit_loss:.0f}s pit loss. Stay out, extend stint, "
-            f"and pit when {car_behind.name} is on worn tires."
+            f"Overcut viable: {car_behind.name} is {gap:.2f}s behind. "
+            f"If they pit, they lose ~{pit_loss:.0f}s; staying out "
+            f"{extra_laps} extra laps costs ~{our_time_loss:.1f}s in deg. "
+            f"Net advantage ~{net_advantage:.1f}s > gap."
             + deg_boost
         )
     else:
         reasoning = (
-            f"Overcut risky: {car_behind.name} is only {gap:.2f}s behind "
-            f"— they may emerge ahead after pitting first."
+            f"Overcut risky: {car_behind.name} is {gap:.2f}s behind "
+            f"— pit loss ~{pit_loss:.0f}s minus ~{our_time_loss:.1f}s deg "
+            f"= ~{net_advantage:.1f}s net, not enough margin."
         )
 
     return viable, reasoning
@@ -223,6 +237,10 @@ def recommend_compound(
         available_compounds: Restrict to these compounds (None = all dry).
     """
     if weather.rainfall:
+        # Light rain on a warm track → intermediates (most common rain scenario)
+        # Heavy rain or cold track → full wets
+        if weather.track_temp is not None and weather.track_temp > 25:
+            return TireCompound.INTERMEDIATE
         return TireCompound.WET
 
     # Rain threat but not raining yet — could be intermediates soon
@@ -266,6 +284,15 @@ def build_strategy_recommendation(
     rain_incoming = any(e.event == WeatherEvent.RAIN_THREAT for e in weather_events)
     rain_now = race_state.weather.rainfall
 
+    # --- Data-quality multiplier for confidence ---
+    # Scale confidence by how much clean data the deg regression is based on
+    data_quality = 1.0
+    if deg and deg.current_stint_laps:
+        data_quality = min(1.0, deg.current_stint_laps / 15)
+
+    # --- Compute pit window once (reused for action + return value) ---
+    pit_window = calculate_optimal_pit_window(driver, deg, race_state, pit_loss)
+
     # --- Determine action ---
     action: str
     reasoning_parts: list[str] = []
@@ -285,23 +312,22 @@ def build_strategy_recommendation(
             f"Tire cliff imminent in ~{deg.laps_remaining_estimate} lap(s) "
             f"(deg rate {deg.deg_rate_per_lap:.3f}s/lap on {deg.compound.value})."
         )
-        confidence = 0.85
+        confidence = 0.85 * data_quality
         recommended_compound = recommend_compound(laps_remaining, race_state.weather)
 
     # Still in viable window
     else:
-        pit_window = calculate_optimal_pit_window(driver, deg, race_state, pit_loss)
         if pit_window and current_lap >= pit_window.earliest_lap:
             action = f"PIT_IN_{pit_window.ideal_lap - current_lap}_LAPS" if pit_window.ideal_lap > current_lap else "PIT_NOW"
             reasoning_parts.append(
                 f"Optimal pit window: laps {pit_window.earliest_lap}–{pit_window.latest_lap} "
                 f"(ideal lap {pit_window.ideal_lap})."
             )
-            confidence = 0.72
+            confidence = 0.72 * data_quality
         else:
             action = "STAY_OUT"
             reasoning_parts.append("No immediate pit trigger — current tires still viable.")
-            confidence = 0.65
+            confidence = 0.65 * data_quality
         recommended_compound = recommend_compound(laps_remaining, race_state.weather)
 
     # Rain threat flag — lower confidence, mention it
@@ -327,7 +353,7 @@ def build_strategy_recommendation(
 
         if driver_idx < len(sorted_drivers) - 1:
             car_behind = sorted_drivers[driver_idx + 1]
-            overcut_viable, oc_reason = evaluate_overcut(driver, car_behind, None, None, race_state, pit_loss)
+            overcut_viable, oc_reason = evaluate_overcut(driver, car_behind, deg, None, race_state, pit_loss)
             if overcut_viable:
                 reasoning_parts.append(oc_reason)
 
@@ -339,9 +365,7 @@ def build_strategy_recommendation(
 
     reasoning = " ".join(reasoning_parts) if reasoning_parts else "Insufficient data for analysis."
 
-    # Determine pit window tuple for the model
-    pw = calculate_optimal_pit_window(driver, deg, race_state, pit_loss)
-    pit_window_tuple = (pw.earliest_lap, pw.latest_lap) if pw else None
+    pit_window_tuple = (pit_window.earliest_lap, pit_window.latest_lap) if pit_window else None
 
     logger.info(
         "Strategy recommendation built",

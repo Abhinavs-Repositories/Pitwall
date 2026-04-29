@@ -28,10 +28,10 @@ async def weather_node(state: AgentState) -> dict[str, Any]:
             raw_weather = await client.get_weather(session_key=session_key)
     except Exception as exc:
         logger.error("weather_node fetch failed: %s", exc)
-        return {"errors": state.errors + [f"Weather fetch error: {exc}"]}
+        return {"errors": [f"Weather fetch error: {exc}"]}
 
     if not raw_weather:
-        return {"weather_history": [], "weather_alert": "", "agents_used": list(state.agents_used) + ["weather"]}
+        return {"weather_history": [], "weather_alert": "", "agents_used": ["weather"]}
 
     # Convert raw dicts → WeatherState list
     weather_history: list[WeatherState] = []
@@ -61,10 +61,8 @@ async def weather_node(state: AgentState) -> dict[str, Any]:
     elif any(e.event == WeatherEvent.RAIN_STOPPED for e in events):
         alert = "Rain has stopped — track drying. Slick tires may soon be viable."
 
-    agents_used = list(state.agents_used) + ["weather"]
-
     return {
         "weather_history": weather_history,
         "weather_alert": alert,
-        "agents_used": agents_used,
+        "agents_used": ["weather"],
     }

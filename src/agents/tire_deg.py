@@ -20,9 +20,9 @@ def tire_deg_node(state: AgentState) -> dict[str, Any]:
     """LangGraph node: compute degradation for all (or targeted) drivers."""
     race_state = state.race_state
     if not race_state:
-        return {"errors": state.errors + ["tire_deg_node: no race_state available"]}
+        return {"errors": ["tire_deg_node: no race_state available"]}
 
-    sc_laps = extract_safety_car_laps(race_state.race_control)
+    sc_laps = extract_safety_car_laps(race_state.race_control, total_laps=race_state.total_laps)
 
     # Determine which drivers to analyse
     drivers_to_analyse = race_state.drivers
@@ -52,6 +52,4 @@ def tire_deg_node(state: AgentState) -> dict[str, Any]:
             deg = deg.model_copy(update={"driver_number": driver.driver_number})
             degradations[str(driver.driver_number)] = deg
 
-    agents_used = list(state.agents_used) + ["tire_degradation"]
-
-    return {"tire_degradations": degradations, "agents_used": agents_used}
+    return {"tire_degradations": degradations, "agents_used": ["tire_degradation"]}

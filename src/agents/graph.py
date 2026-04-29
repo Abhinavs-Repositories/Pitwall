@@ -82,18 +82,28 @@ logger = logging.getLogger(__name__)
 # Conditional routing logic
 # ---------------------------------------------------------------------------
 
-def _needs_tire_deg(state: AgentState) -> str:
-    """Route to tire_deg only for queries that need it."""
+def _after_router(state: AgentState) -> str:
+    """Short-circuit off_topic queries directly to explainer."""
+    if state.query_type == "off_topic":
+        return "explainer"
+    return "race_state"
+
+
+def _fan_out_after_race_state(state: AgentState) -> list[str]:
+    """Fan out to independent analysis nodes in parallel.
+
+    tire_deg, weather, and strategy_rag don't depend on each other —
+    they all read from race_state and can run concurrently.
+    """
+    targets = ["weather"]  # always run weather
+
     if state.query_type in ("tire_analysis", "strategy", "comparison"):
-        return "tire_deg"
-    return "weather"
+        targets.append("tire_deg")
 
-
-def _needs_strategy_rag(state: AgentState) -> str:
-    """Route to strategy_rag only for strategy/historical/comparison queries."""
     if state.query_type in ("strategy", "historical", "comparison"):
-        return "strategy_rag"
-    return "explainer"
+        targets.append("strategy_rag")
+
+    return targets
 
 
 def _needs_strategy(state: AgentState) -> str:
@@ -123,32 +133,25 @@ def build_graph() -> StateGraph:
     # Entry point
     builder.add_edge(START, "router")
 
-    # Router → Race State (always fetch race data)
-    builder.add_edge("router", "race_state")
+    # Router → off_topic short-circuit or Race State
+    builder.add_conditional_edges(
+        "router",
+        _after_router,
+        {"explainer": "explainer", "race_state": "race_state"},
+    )
 
-    # Race State → conditional tire_deg vs weather
+    # Race State → fan out to independent analysis nodes in parallel
+    # tire_deg, weather, and strategy_rag are independent — run concurrently
     builder.add_conditional_edges(
         "race_state",
-        _needs_tire_deg,
-        {"tire_deg": "tire_deg", "weather": "weather"},
+        _fan_out_after_race_state,
+        ["tire_deg", "weather", "strategy_rag"],
     )
 
-    # Tire Deg → Weather (always run weather after tire deg)
-    builder.add_edge("tire_deg", "weather")
-
-    # Weather → conditional strategy_rag vs explainer
-    builder.add_conditional_edges(
-        "weather",
-        _needs_strategy_rag,
-        {"strategy_rag": "strategy_rag", "explainer": "explainer"},
-    )
-
-    # Strategy RAG → conditional strategy vs explainer
-    builder.add_conditional_edges(
-        "strategy_rag",
-        _needs_strategy,
-        {"strategy": "strategy", "explainer": "explainer"},
-    )
+    # All analysis nodes fan in → strategy decision (or straight to explainer)
+    builder.add_conditional_edges("tire_deg", _needs_strategy, {"strategy": "strategy", "explainer": "explainer"})
+    builder.add_conditional_edges("weather", _needs_strategy, {"strategy": "strategy", "explainer": "explainer"})
+    builder.add_conditional_edges("strategy_rag", _needs_strategy, {"strategy": "strategy", "explainer": "explainer"})
 
     # Strategy → Explainer (always)
     builder.add_edge("strategy", "explainer")

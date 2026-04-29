@@ -10,6 +10,7 @@ Key design decisions (from spec):
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -22,10 +23,14 @@ logger = logging.getLogger(__name__)
 CLIFF_THRESHOLD_S: float = 2.5
 
 # Minimum clean laps required for a reliable regression
-MIN_CLEAN_LAPS: int = 4
+MIN_CLEAN_LAPS: int = 6
 
 # Warm-up laps to skip at the start of each stint
 WARMUP_LAPS: int = 2
+
+# Fuel burn effect: lighter car ≈ 0.06s/lap faster.  We add this back so
+# the regression measures true tire degradation, not (tire_deg − fuel_gain).
+FUEL_CORRECTION_PER_LAP: float = 0.06
 
 
 # ---------------------------------------------------------------------------
@@ -67,12 +72,19 @@ def calculate_degradation(
     # Normalise lap numbers relative to stint start so the intercept = lap-1 pace
     relative = lap_nums - stint.lap_start
 
-    slope, intercept = _linear_regression(relative, times)
+    # Fuel correction: cars get ~0.06s/lap faster from fuel burn.  Add this
+    # back so we measure true tire degradation, not (tire_deg − fuel_gain).
+    corrected_times = times + FUEL_CORRECTION_PER_LAP * relative
 
-    stint_best = float(times.min())
+    slope, intercept, r_squared = _linear_regression(relative, corrected_times)
+
+    # If R² is very low, the regression is mostly noise — don't trust the cliff
+    trust_regression = r_squared >= 0.3
+
+    stint_best = float(corrected_times.min())
     current_stint_laps = int(lap_nums.max()) - stint.lap_start
 
-    cliff_lap = _predict_cliff(slope, intercept, stint_best, stint.lap_start)
+    cliff_lap = _predict_cliff(slope, intercept, stint_best, stint.lap_start) if trust_regression else None
 
     laps_remaining: int | None = None
     if cliff_lap is not None:
@@ -83,6 +95,7 @@ def calculate_degradation(
         extra={
             "compound": stint.compound.value,
             "deg_rate": round(slope, 4),
+            "r_squared": round(r_squared, 3),
             "cliff_lap": cliff_lap,
             "clean_laps_used": len(clean),
         },
@@ -132,7 +145,8 @@ def compare_compound_performance(
             times = np.array([l.lap_time for l in clean], dtype=float)
             lap_nums = np.array([l.lap_number for l in clean], dtype=float)
             relative = lap_nums - stint.lap_start
-            slope, _ = _linear_regression(relative, times)
+            corrected = times + FUEL_CORRECTION_PER_LAP * relative
+            slope, _, _ = _linear_regression(relative, corrected)
             stats.append(
                 _CompoundStat(
                     driver_number=driver.driver_number,
@@ -148,21 +162,49 @@ def compare_compound_performance(
     return stats
 
 
-def extract_safety_car_laps(race_control: list[RaceControlMessage]) -> set[int]:
+def extract_safety_car_laps(
+    race_control: list[RaceControlMessage],
+    total_laps: int = 70,
+) -> set[int]:
     """Derive a rough set of safety-car-affected lap numbers from RC messages.
 
-    OpenF1 RC messages don't always carry a lap_number, so this is best-effort.
-    We mark the VSC/SC deployment lap and a conservative +3 laps after it.
+    Strategy:
+    1. Detect SC/VSC deployment and ending from message text + category.
+    2. Try to extract a lap number from the message text (e.g. "LAP 23").
+    3. Mark a conservative window: deployment lap through +3 laps (SC) or
+       +2 laps (VSC), or until a SC-ending message is found.
+
+    This is best-effort — OpenF1 RC messages don't carry a lap_number field.
     """
     sc_laps: set[int] = set()
+    SC_WINDOW = 4   # conservative laps affected by full SC
+    VSC_WINDOW = 3  # conservative laps affected by VSC
+
     for msg in race_control:
         cat = (msg.category or "").lower()
         text = msg.message.lower()
-        if "safety car" in text or "virtual safety car" in text or cat == "safetycar":
-            # We don't have a lap number on the message model, but if category
-            # has it we'd use it. Flag a sentinel so callers know SC occurred.
-            # (The proper implementation maps message timestamps to lap timestamps.)
-            pass
+
+        is_sc = "safety car" in text or cat == "safetycar"
+        is_vsc = "virtual safety car" in text or "vsc" in text
+        is_ending = "ending" in text or "in this lap" in text or "withdrawn" in text
+
+        if not (is_sc or is_vsc):
+            continue
+        if is_ending:
+            continue  # SC ending messages — don't add more laps
+
+        # Try to extract lap number from message text (e.g. "SAFETY CAR DEPLOYED - LAP 23")
+        lap_match = re.search(r"lap\s+(\d{1,2})", text)
+        if lap_match:
+            deploy_lap = int(lap_match.group(1))
+        else:
+            # No lap number in message — skip rather than guess wildly
+            continue
+
+        window = VSC_WINDOW if is_vsc else SC_WINDOW
+        for lap in range(deploy_lap, min(deploy_lap + window, total_laps + 1)):
+            sc_laps.add(lap)
+
     return sc_laps
 
 
@@ -197,19 +239,26 @@ def _extract_clean_laps(
     if not clean:
         return clean
 
-    # Second pass: remove statistical outliers (> 15 s above current minimum)
+    # Second pass: remove statistical outliers (> 5 s above current minimum)
+    # 5s is generous for racing laps but filters SC/VSC/yellow-flag laps
     min_time = min(l.lap_time for l in clean)  # type: ignore[arg-type]
-    clean = [l for l in clean if l.lap_time <= min_time + 15.0]  # type: ignore[operator]
+    clean = [l for l in clean if l.lap_time <= min_time + 5.0]  # type: ignore[operator]
 
     return clean
 
 
-def _linear_regression(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
-    """Return (slope, intercept) from ordinary least-squares regression."""
+def _linear_regression(x: np.ndarray, y: np.ndarray) -> tuple[float, float, float]:
+    """Return (slope, intercept, r_squared) from ordinary least-squares regression."""
     if len(x) < 2:
-        return 0.0, float(y.mean()) if len(y) else 0.0
+        return 0.0, float(y.mean()) if len(y) else 0.0, 0.0
     coeffs = np.polyfit(x, y, 1)
-    return float(coeffs[0]), float(coeffs[1])
+    slope, intercept = float(coeffs[0]), float(coeffs[1])
+    # Compute R² (coefficient of determination)
+    y_pred = slope * x + intercept
+    ss_res = float(np.sum((y - y_pred) ** 2))
+    ss_tot = float(np.sum((y - np.mean(y)) ** 2))
+    r_squared = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+    return slope, intercept, r_squared
 
 
 def _predict_cliff(
