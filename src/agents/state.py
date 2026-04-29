@@ -56,6 +56,9 @@ class AgentState(BaseModel):
     final_response: str = ""
     agents_used: Annotated[list[str], operator.add] = Field(default_factory=list)
 
+    # ---- Control flags ----
+    skip_explainer_llm: bool = False  # when True, explainer collects context but skips LLM call (used for streaming)
+
     # ---- Error handling ----
     errors: Annotated[list[str], operator.add] = Field(default_factory=list)
 

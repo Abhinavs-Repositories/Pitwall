@@ -97,31 +97,45 @@ def fetch_race_summary(session_key: int, lap: int) -> str:
         return "Summary unavailable — check API connection."
 
 
-def send_chat(
+def stream_chat(
     session_key: int,
     lap: int,
     message: str,
     history: list[dict],
-) -> dict:
+):
+    """Stream chat response via SSE. Yields (event_type, data) tuples.
+
+    Event types: "meta", "token", "done", "error".
+    """
     try:
         r = requests.post(
-            f"{API_BASE}/chat",
+            f"{API_BASE}/chat/stream",
             json={
                 "session_key": session_key,
                 "current_lap": lap,
                 "message": message,
                 "conversation_history": history,
             },
-            timeout=60,
+            timeout=90,
+            stream=True,
         )
         r.raise_for_status()
-        return r.json()
+
+        current_event = "token"
+        for line in r.iter_lines(decode_unicode=True):
+            if line is None:
+                continue
+            if line.startswith("event: "):
+                current_event = line[7:]
+            elif line.startswith("data: "):
+                data = line[6:]
+                yield current_event, data
+            # blank lines separate events — reset to default
+            elif line == "":
+                current_event = "token"
+
     except Exception as exc:
-        return {
-            "response": f"Chat error: {exc}",
-            "agents_used": [],
-            "processing_time_ms": 0,
-        }
+        yield "error", str(exc)
 
 
 def _compound_badge(compound: str) -> str:
@@ -318,50 +332,79 @@ if user_input and session_key:
         if m["role"] in ("user", "assistant")
     ]
 
-    # Call the API
+    # Stream the response via SSE
     with st.chat_message("assistant"):
-        with st.spinner("Analysing..."):
-            t0 = time.monotonic()
-            result = send_chat(
-                session_key=session_key,
-                lap=current_lap,
-                message=user_input,
-                history=api_history[:-1],  # exclude the message we just added
-            )
-            elapsed = time.monotonic() - t0
+        status_placeholder = st.empty()
+        status_placeholder.caption("⏳ Running agent pipeline...")
 
-        response_text = result.get("response", "No response")
-        st.markdown(response_text)
+        response_placeholder = st.empty()
+        meta_placeholder = st.empty()
+        strategy_container = st.container()
 
-        agents = result.get("agents_used", [])
-        proc_ms = result.get("processing_time_ms", round(elapsed * 1000))
-        meta = f"Agents: {' → '.join(agents)} | {proc_ms:.0f}ms"
-        st.caption(meta)
+        response_text = ""
+        agents: list[str] = []
+        strategy: dict | None = None
+        total_ms: float = 0
+        pipeline_ms: float = 0
+        t0 = time.monotonic()
 
-        # Show strategy card if available
-        strategy = result.get("strategy_data")
+        for event_type, data in stream_chat(
+            session_key=session_key,
+            lap=current_lap,
+            message=user_input,
+            history=api_history[:-1],
+        ):
+            if event_type == "meta":
+                meta_info = json.loads(data)
+                agents = meta_info.get("agents_used", [])
+                strategy = meta_info.get("strategy_data")
+                pipeline_ms = meta_info.get("pipeline_time_ms", 0)
+                status_placeholder.empty()
+
+            elif event_type == "token":
+                response_text += data
+                response_placeholder.markdown(response_text + "▌")
+
+            elif event_type == "done":
+                done_info = json.loads(data)
+                total_ms = done_info.get("total_time_ms", round((time.monotonic() - t0) * 1000))
+
+            elif event_type == "error":
+                response_text = f"Error: {data}"
+
+        # Final render (remove cursor)
+        response_placeholder.markdown(response_text or "No response")
+
+        if not total_ms:
+            total_ms = round((time.monotonic() - t0) * 1000)
+
+        meta = f"Agents: {' → '.join(agents)} | {total_ms:.0f}ms"
+        meta_placeholder.caption(meta)
+
+        # Strategy card
         if strategy:
-            action = strategy.get("recommended_action", "")
-            compound = strategy.get("recommended_compound", "")
-            confidence = strategy.get("confidence", 0)
-            pit_window = strategy.get("optimal_pit_window")
+            with strategy_container:
+                action = strategy.get("recommended_action", "")
+                compound = strategy.get("recommended_compound", "")
+                confidence = strategy.get("confidence", 0)
+                pit_window = strategy.get("optimal_pit_window")
 
-            with st.expander("📊 Strategy Details", expanded=False):
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Recommendation", action)
-                c2.metric("Compound", compound or "TBD")
-                c3.metric("Confidence", f"{confidence:.0%}")
-                if pit_window:
-                    st.info(f"Pit window: Lap {pit_window[0]}–{pit_window[1]}")
-                undercut = strategy.get("undercut_viable")
-                overcut = strategy.get("overcut_viable")
-                if undercut or overcut:
-                    flags = []
-                    if undercut:
-                        flags.append("✅ Undercut viable")
-                    if overcut:
-                        flags.append("✅ Overcut viable")
-                    st.success(" | ".join(flags))
+                with st.expander("📊 Strategy Details", expanded=False):
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Recommendation", action)
+                    c2.metric("Compound", compound or "TBD")
+                    c3.metric("Confidence", f"{confidence:.0%}")
+                    if pit_window:
+                        st.info(f"Pit window: Lap {pit_window[0]}–{pit_window[1]}")
+                    undercut = strategy.get("undercut_viable")
+                    overcut = strategy.get("overcut_viable")
+                    if undercut or overcut:
+                        flags = []
+                        if undercut:
+                            flags.append("✅ Undercut viable")
+                        if overcut:
+                            flags.append("✅ Overcut viable")
+                        st.success(" | ".join(flags))
 
     st.session_state.chat_history.append(
         {"role": "assistant", "content": response_text, "meta": meta}

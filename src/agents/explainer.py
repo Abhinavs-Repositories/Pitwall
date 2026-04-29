@@ -8,6 +8,7 @@ Supports streaming (Groq natively supports it for better UX).
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 from src.agents.state import AgentState
@@ -54,16 +55,17 @@ def explainer_node(state: AgentState) -> dict[str, Any]:
             "agents_used": ["explainer"],
         }
 
+    # When streaming is requested, skip the LLM call — the streaming endpoint
+    # will call stream_explainer() separately after the graph finishes.
+    if state.skip_explainer_llm:
+        return {"final_response": "", "agents_used": ["explainer"]}
+
     context = _build_context(state)
     prompt = _build_prompt(state.user_message, context, state.query_type)
 
     try:
         llm = get_llm(streaming=False)
-        messages = [
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            *state.conversation_history,
-            {"role": "user", "content": prompt},
-        ]
+        messages = _build_messages(state.conversation_history, prompt)
         response = llm.invoke(messages)
         final_response = str(response.content).strip()
     except Exception as exc:
@@ -74,8 +76,52 @@ def explainer_node(state: AgentState) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Streaming support
+# ---------------------------------------------------------------------------
+
+
+async def stream_explainer(state: AgentState) -> AsyncIterator[str]:
+    """Async generator that yields LLM response tokens for the explainer.
+
+    Call this AFTER the graph has run with ``skip_explainer_llm=True`` so that
+    all upstream data (race_state, tire_deg, weather, strategy, etc.) is populated.
+    """
+    if state.query_type == "off_topic":
+        yield _OFF_TOPIC_RESPONSE
+        return
+
+    if state.errors and state.race_state is None:
+        error_summary = "; ".join(state.errors[:3])
+        yield f"I encountered issues fetching race data: {error_summary}. Please check the session key and try again."
+        return
+
+    context = _build_context(state)
+    prompt = _build_prompt(state.user_message, context, state.query_type)
+    messages = _build_messages(state.conversation_history, prompt)
+
+    try:
+        llm = get_llm(streaming=True)
+        async for chunk in llm.astream(messages):
+            token = chunk.content
+            if token:
+                yield token
+    except Exception as exc:
+        logger.error("stream_explainer LLM call failed: %s", exc)
+        yield _fallback_response(state)
+
+
+# ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+
+def _build_messages(conversation_history: list[dict], prompt: str) -> list[dict]:
+    """Assemble the full message list for the LLM."""
+    return [
+        {"role": "system", "content": _SYSTEM_PROMPT},
+        *conversation_history,
+        {"role": "user", "content": prompt},
+    ]
 
 # Which context sections each query_type needs
 _CONTEXT_SECTIONS: dict[str, set[str]] = {

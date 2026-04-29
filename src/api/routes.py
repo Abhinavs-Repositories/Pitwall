@@ -6,15 +6,18 @@ Endpoints:
     GET  /api/races/{session_key}/lap/{lap_number} — Race state at specific lap
     GET  /api/races/{session_key}/summary/{lap_number} — LLM-generated race summary
     POST /api/chat                                — Natural language strategy question
+    POST /api/chat/stream                         — Streaming strategy response (SSE)
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 
 from src.data.models import ChatRequest, ChatResponse, RaceState, StrategyRecommendation
 from src.data.openf1_client import OpenF1Client
@@ -183,4 +186,94 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
         strategy_data=strategy_data,
         agents_used=result.get("agents_used", []),
         processing_time_ms=elapsed_ms,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Streaming chat endpoint (SSE)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/chat/stream", tags=["chat"])
+async def chat_stream(request: Request, body: ChatRequest) -> StreamingResponse:
+    """Stream a strategy response token-by-token via Server-Sent Events.
+
+    SSE event types:
+        ``meta``   — JSON with agents_used, strategy_data, processing_time_ms
+                     (sent first, before any tokens)
+        ``token``  — a single LLM output chunk (many of these)
+        ``done``   — empty, signals the stream is complete
+        ``error``  — JSON with detail string
+    """
+    graph = getattr(request.app.state, "agent_graph", None)
+    if graph is None:
+        try:
+            from src.agents.graph import build_graph
+            graph = build_graph()
+            request.app.state.agent_graph = graph
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"Agent graph unavailable: {exc}")
+
+    async def event_generator():
+        from src.agents.explainer import stream_explainer
+        from src.agents.state import AgentState
+
+        t0 = time.monotonic()
+
+        # Run the full pipeline with the explainer LLM call skipped
+        try:
+            result = await graph.ainvoke({
+                "session_key": body.session_key,
+                "current_lap": body.current_lap,
+                "user_message": body.message,
+                "conversation_history": body.conversation_history,
+                "skip_explainer_llm": True,
+            })
+        except Exception as exc:
+            logger.error("Streaming chat graph error: %s", exc, exc_info=True)
+            yield f"event: error\ndata: {json.dumps({'detail': str(exc)})}\n\n"
+            return
+
+        pipeline_ms = round((time.monotonic() - t0) * 1000, 1)
+
+        # Extract strategy data
+        strategy_data = None
+        recs = result.get("strategy_recommendations", {})
+        if recs:
+            rec = next(iter(recs.values()), None)
+            if rec is not None:
+                strategy_data = rec.model_dump()
+
+        # Send metadata first
+        meta = {
+            "agents_used": result.get("agents_used", []),
+            "strategy_data": strategy_data,
+            "pipeline_time_ms": pipeline_ms,
+        }
+        yield f"event: meta\ndata: {json.dumps(meta)}\n\n"
+
+        # Reconstruct AgentState for the streaming explainer
+        state = AgentState(**result)
+
+        # Stream LLM tokens
+        try:
+            async for token in stream_explainer(state):
+                # SSE requires no bare newlines in data; encode them
+                escaped = token.replace("\n", "\ndata: ")
+                yield f"event: token\ndata: {escaped}\n\n"
+        except Exception as exc:
+            logger.error("Streaming explainer error: %s", exc, exc_info=True)
+            yield f"event: error\ndata: {json.dumps({'detail': str(exc)})}\n\n"
+            return
+
+        total_ms = round((time.monotonic() - t0) * 1000, 1)
+        yield f"event: done\ndata: {json.dumps({'total_time_ms': total_ms})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )
