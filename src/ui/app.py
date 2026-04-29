@@ -19,6 +19,7 @@ Run with:
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Any
 
@@ -29,7 +30,7 @@ import streamlit as st
 # Configuration
 # ---------------------------------------------------------------------------
 
-API_BASE = "http://localhost:8000/api"
+API_BASE = os.environ.get("API_BASE", "http://localhost:8000/api")
 
 COMPOUND_COLORS = {
     "SOFT": "#FF3333",
