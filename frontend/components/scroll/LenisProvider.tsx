@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Lenis from "lenis";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -13,17 +14,28 @@ export function useLenis() {
   return useContext(LenisContext);
 }
 
+// Lenis's smooth momentum scroll is a landing-page aesthetic choice — it
+// hijacks wheel events globally, which breaks native scrolling inside
+// nested panels on functional "app" pages like /strategy. Only run it on
+// the cinematic marketing route.
+const LENIS_ROUTES = ["/"];
+
 export function LenisProvider({ children }: { children: React.ReactNode }) {
-  const lenisRef = useRef<Lenis | null>(null);
+  const pathname = usePathname();
   const [instance, setInstance] = useState<Lenis | null>(null);
+  const enabled = LENIS_ROUTES.includes(pathname);
 
   useEffect(() => {
+    if (!enabled) {
+      setInstance(null);
+      return;
+    }
+
     const lenis = new Lenis({
       duration: 1.4,
       easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
     });
-    lenisRef.current = lenis;
     setInstance(lenis);
 
     lenis.on("scroll", ScrollTrigger.update);
@@ -37,9 +49,8 @@ export function LenisProvider({ children }: { children: React.ReactNode }) {
     return () => {
       gsap.ticker.remove(raf);
       lenis.destroy();
-      lenisRef.current = null;
     };
-  }, []);
+  }, [enabled]);
 
   return <LenisContext.Provider value={instance}>{children}</LenisContext.Provider>;
 }

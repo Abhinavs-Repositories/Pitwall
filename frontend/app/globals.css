@@ -93,6 +93,33 @@ body {
   color: var(--text-primary);
 }
 
+/* Dark themed scrollbar — the default white/grey one clashes with the
+   carbon UI everywhere it shows up (main page scroll, chat/telemetry
+   panels). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--carbon-4) var(--carbon);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--carbon);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--carbon-4);
+  border-radius: 6px;
+  border: 2px solid var(--carbon);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-bright);
+}
+
 /* Lenis smooth-scroll: hands the rAF loop to Lenis instead of native scroll */
 html.lenis {
   height: auto;
