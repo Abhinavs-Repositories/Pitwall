@@ -31,6 +31,26 @@ logger = logging.getLogger(__name__)
 TRACKS_JSON = Path(__file__).parent.parent / "src" / "rag" / "knowledge" / "tracks.json"
 
 
+async def _with_retry(coro_factory, what: str, max_attempts: int = 6):
+    """Run an async Qdrant call, retrying on transient connection failures.
+
+    Qdrant Cloud free-tier clusters intermittently fail to connect (DNS/TCP);
+    without retries a single transient failure aborts the whole seed.
+    """
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return await coro_factory()
+        except Exception as exc:
+            if attempt == max_attempts:
+                raise
+            wait = min(2 ** (attempt - 1), 10)
+            logger.warning(
+                "%s failed (attempt %d/%d): %s — retrying in %ss",
+                what, attempt, max_attempts, exc, wait,
+            )
+            await asyncio.sleep(wait)
+
+
 async def run(dry_run: bool) -> None:
     setup_logging()
     settings = get_settings()
@@ -62,15 +82,19 @@ async def run(dry_run: bool) -> None:
     client = AsyncQdrantClient(
         url=settings.qdrant_url,
         api_key=settings.qdrant_api_key or None,
+        timeout=60,
     )
 
     # Ensure collection exists
-    collections = await client.get_collections()
+    collections = await _with_retry(client.get_collections, "get_collections")
     existing = [c.name for c in collections.collections]
     if settings.qdrant_collection not in existing:
-        await client.create_collection(
-            collection_name=settings.qdrant_collection,
-            vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE),
+        await _with_retry(
+            lambda: client.create_collection(
+                collection_name=settings.qdrant_collection,
+                vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE),
+            ),
+            "create_collection",
         )
         logger.info("Created collection: %s", settings.qdrant_collection)
 
@@ -89,7 +113,10 @@ async def run(dry_run: bool) -> None:
             )
         )
 
-    await client.upsert(collection_name=settings.qdrant_collection, points=points)
+    await _with_retry(
+        lambda: client.upsert(collection_name=settings.qdrant_collection, points=points),
+        "upsert",
+    )
     logger.info("Seeded %d track profiles into Qdrant", len(points))
     await client.close()
 

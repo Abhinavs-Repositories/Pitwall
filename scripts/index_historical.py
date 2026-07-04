@@ -46,6 +46,11 @@ async def run(years: list[int], dry_run: bool) -> None:
 
             logger.info("Found %d races in %d", len(sessions), year)
 
+            # Collect all strategies for the year first (OpenF1 + Groq work needs
+            # no Qdrant connection), then upsert once. Qdrant Cloud free-tier drops
+            # idle connections, so minimising round-trips avoids repeated reconnect
+            # failures that a per-race upsert would incur.
+            strategies = []
             for session in sessions:
                 session_key = session.get("session_key")
                 meeting_name = session.get("meeting_name", "?")
@@ -70,8 +75,15 @@ async def run(years: list[int], dry_run: bool) -> None:
                     print(f"Events: {strategy.key_events}")
                     print(f"Summary: {strategy.summary[:200]}...")
                 else:
-                    await indexer.index_strategy(strategy)
-                    logger.info("  Indexed: %s", meeting_name)
+                    strategies.append(strategy)
+
+            if not dry_run and strategies:
+                logger.info("Indexing %d strategies for %d ...", len(strategies), year)
+                try:
+                    await indexer.index_many(strategies)
+                    logger.info("Indexed %d strategies for %d", len(strategies), year)
+                except Exception as exc:
+                    logger.error("Failed to batch-index year %d: %s", year, exc)
 
     if not dry_run:
         await indexer.close()

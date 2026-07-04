@@ -14,6 +14,7 @@ Flow for each race session:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from typing import Any
@@ -52,18 +53,24 @@ class StrategyIndexer:
             self._client = AsyncQdrantClient(
                 url=self._qdrant_url,
                 api_key=self._qdrant_api_key or None,
+                timeout=60,
             )
 
             # Create collection if needed
-            collections = await self._client.get_collections()
+            collections = await self._with_retry(
+                self._client.get_collections, "get_collections"
+            )
             existing = [c.name for c in collections.collections]
             if self._collection not in existing:
-                await self._client.create_collection(
-                    collection_name=self._collection,
-                    vectors_config=VectorParams(
-                        size=EMBEDDING_DIM,
-                        distance=Distance.COSINE,
+                await self._with_retry(
+                    lambda: self._client.create_collection(
+                        collection_name=self._collection,
+                        vectors_config=VectorParams(
+                            size=EMBEDDING_DIM,
+                            distance=Distance.COSINE,
+                        ),
                     ),
+                    "create_collection",
                 )
                 logger.info("Created Qdrant collection: %s", self._collection)
             else:
@@ -97,9 +104,8 @@ class StrategyIndexer:
         point_id = str(uuid.uuid4())
         payload = strategy.model_dump()
 
-        await self._client.upsert(
-            collection_name=self._collection,
-            points=[PointStruct(id=point_id, vector=vector, payload=payload)],
+        await self._upsert_with_retry(
+            [PointStruct(id=point_id, vector=vector, payload=payload)]
         )
 
         logger.info(
@@ -132,10 +138,7 @@ class StrategyIndexer:
                 )
             )
 
-        await self._client.upsert(
-            collection_name=self._collection,
-            points=points,
-        )
+        await self._upsert_with_retry(points)
 
         logger.info("Batch-indexed %d strategies", len(strategies))
         return ids
@@ -147,6 +150,40 @@ class StrategyIndexer:
     def _ensure_open(self) -> None:
         if self._client is None:
             raise RuntimeError("StrategyIndexer.init() must be called first")
+
+    async def _with_retry(self, coro_factory, what: str, max_attempts: int = 6):
+        """Run an async Qdrant call, retrying on transient connection failures.
+
+        Qdrant Cloud free-tier clusters intermittently fail to connect or drop
+        idle connections; without retries a single transient ConnectError/DNS
+        failure aborts the whole run.
+        """
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return await coro_factory()
+            except Exception as exc:
+                if attempt == max_attempts:
+                    raise
+                wait = min(2 ** (attempt - 1), 10)
+                logger.warning(
+                    "Qdrant %s failed (attempt %d/%d): %s — retrying in %ss",
+                    what,
+                    attempt,
+                    max_attempts,
+                    exc,
+                    wait,
+                )
+                await asyncio.sleep(wait)
+
+    async def _upsert_with_retry(self, points: list) -> None:
+        """Upsert points with transient-failure retries."""
+        await self._with_retry(
+            lambda: self._client.upsert(
+                collection_name=self._collection,
+                points=points,
+            ),
+            "upsert",
+        )
 
 
 # ---------------------------------------------------------------------------
