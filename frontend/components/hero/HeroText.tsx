@@ -9,7 +9,11 @@ const HeroText = forwardRef<HTMLDivElement>(function HeroText(_, underlineRef) {
         PITWALL
       </h1>
       <div className="h-[2px] w-[46vw] max-w-[560px] overflow-hidden">
-        <div ref={underlineRef} className="h-full w-full origin-left bg-f1-red" />
+        <div
+          ref={underlineRef}
+          className="h-full w-full origin-left"
+          style={{ background: "linear-gradient(90deg, #e8002d, #ff8000)" }}
+        />
       </div>
       <p className="font-mono text-xs tracking-[0.3em] text-text-muted uppercase mt-6 animate-pulse">
         // scroll to engage

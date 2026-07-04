@@ -8,7 +8,7 @@ interface Streak {
   len: number;
   speed: number;
   width: number;
-  hue: "white" | "red";
+  color: string;
   opacity: number;
 }
 
@@ -18,6 +18,27 @@ function seededRandom(seed: number) {
     s = (s * 16807) % 2147483647;
     return (s - 1) / 2147483646;
   };
+}
+
+// Weighted toward white (the dominant "speed" streak) with occasional
+// glints in real 2026 team colours — the grid blurring past, not a
+// single car.
+const STREAK_PALETTE: { rgb: string; weight: number }[] = [
+  { rgb: "245,245,245", weight: 0.56 }, // white
+  { rgb: "232,0,32", weight: 0.16 }, // ferrari red
+  { rgb: "54,113,198", weight: 0.12 }, // red bull navy
+  { rgb: "255,128,0", weight: 0.09 }, // mclaren papaya
+  { rgb: "39,244,210", weight: 0.07 }, // mercedes teal
+];
+
+function pickColor(rand: () => number): string {
+  const roll = rand();
+  let acc = 0;
+  for (const { rgb, weight } of STREAK_PALETTE) {
+    acc += weight;
+    if (roll <= acc) return rgb;
+  }
+  return STREAK_PALETTE[0].rgb;
 }
 
 /**
@@ -44,7 +65,7 @@ export default function SpeedStreakCanvas() {
       len: 120 + rand() * 260,
       speed: 2.2 + rand() * 4.2,
       width: 0.6 + rand() * 1.8,
-      hue: rand() > 0.86 ? "red" : "white",
+      color: pickColor(rand),
       opacity: 0.08 + rand() * 0.22,
     }));
 
@@ -63,14 +84,16 @@ export default function SpeedStreakCanvas() {
 
       for (const s of streaks) {
         s.x -= s.speed;
-        if (s.x + s.len < 0) s.x = width + rand() * 200;
+        if (s.x + s.len < 0) {
+          s.x = width + rand() * 200;
+          s.color = pickColor(rand);
+        }
 
         const y = s.y * height;
         const grad = ctx.createLinearGradient(s.x, y, s.x + s.len, y);
-        const color = s.hue === "red" ? "232,0,45" : "245,245,245";
-        grad.addColorStop(0, `rgba(${color},0)`);
-        grad.addColorStop(0.5, `rgba(${color},${s.opacity})`);
-        grad.addColorStop(1, `rgba(${color},0)`);
+        grad.addColorStop(0, `rgba(${s.color},0)`);
+        grad.addColorStop(0.5, `rgba(${s.color},${s.opacity})`);
+        grad.addColorStop(1, `rgba(${s.color},0)`);
 
         ctx.strokeStyle = grad;
         ctx.lineWidth = s.width;
@@ -97,7 +120,8 @@ export default function SpeedStreakCanvas() {
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(60% 50% at 30% 40%, rgba(232,0,45,0.10), transparent 70%)",
+            "radial-gradient(55% 45% at 25% 30%, rgba(232,0,32,0.10), transparent 70%), " +
+            "radial-gradient(50% 45% at 80% 85%, rgba(54,113,198,0.08), transparent 70%)",
         }}
       />
       <div className="grain-overlay" />

@@ -29,17 +29,30 @@
   --border-bright: rgba(255, 255, 255, 0.12);
   --border-accent: rgba(232, 0, 45, 0.4);
 
-  /* Team colours */
+  /* Team colours — 2026 grid */
   --team-redbull: #3671c6;
-  --team-ferrari: #e8002d;
+  --team-ferrari: #e80020;
   --team-mercedes: #27f4d2;
   --team-mclaren: #ff8000;
-  --team-alpine: #ff87bc;
-  --team-aston: #229971;
+  --team-alpine: #0090ff;
+  --team-alpine-pink: #ff87bc;
+  --team-aston: #00665e;
   --team-williams: #64c4ff;
-  --team-haas: #b6babd;
-  --team-sauber: #52e252;
+  --team-haas: #e6002b;
+  --team-audi: #f50537;
+  --team-audi-silver: #c8ced4;
+  --team-cadillac-gold: #c9a24b;
   --team-rb: #6692ff;
+
+  /* Grid spectrum — the full field's identity as one gradient, used sparingly */
+  --gradient-grid: linear-gradient(
+    90deg,
+    var(--team-ferrari),
+    var(--team-mclaren),
+    var(--team-mercedes),
+    var(--team-alpine),
+    var(--team-redbull)
+  );
 
   /* Compound colours */
   --compound-soft: #e8002d;
@@ -111,4 +124,8 @@ html.lenis {
 }
 .font-body {
   font-family: var(--font-body);
+}
+
+.bg-gradient-grid {
+  background: var(--gradient-grid);
 }

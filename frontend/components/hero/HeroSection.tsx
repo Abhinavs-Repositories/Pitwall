@@ -14,6 +14,7 @@ const CircuitCanvas = dynamic(() => import("./CircuitCanvas"), {
 
 export default function HeroSection() {
   const root = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
   const bgRef = useRef<HTMLDivElement>(null);
   const visualRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -45,30 +46,49 @@ export default function HeroSection() {
           { scaleX: 1, duration: 1.2, ease: "power2.out", delay: 0.9 }
         );
       }
+
+      // Pin the hero in place, then scale + fade its content away as the
+      // user scrolls past — the next section only takes over once this
+      // has fully dissolved.
+      gsap.to(content.current, {
+        scale: 0.7,
+        opacity: 0,
+        ease: "none",
+        scrollTrigger: {
+          trigger: root.current,
+          start: "top top",
+          end: "+=100%",
+          pin: true,
+          scrub: 1,
+          anticipatePin: 1,
+        },
+      });
     },
     { scope: root }
   );
 
   return (
     <section ref={root} className="relative h-screen w-full overflow-hidden bg-carbon">
-      <div ref={bgRef} className="absolute inset-0">
-        <div className="grain-overlay" />
-      </div>
-
-      <div className="relative grid h-full w-full grid-cols-1 md:grid-cols-2">
-        <div ref={visualRef} className="relative h-full w-full">
-          <SpeedStreakCanvas />
+      <div ref={content} className="absolute inset-0">
+        <div ref={bgRef} className="absolute inset-0">
+          <div className="grain-overlay" />
         </div>
-        <div ref={canvasRef} className="relative h-full w-full">
-          <CircuitCanvas />
-        </div>
-      </div>
 
-      <div
-        ref={textRef}
-        className="pointer-events-none absolute inset-0 flex items-center justify-center"
-      >
-        <HeroText ref={underlineRef} />
+        <div className="relative grid h-full w-full grid-cols-1 md:grid-cols-2">
+          <div ref={visualRef} className="relative h-full w-full">
+            <SpeedStreakCanvas />
+          </div>
+          <div ref={canvasRef} className="relative h-full w-full">
+            <CircuitCanvas />
+          </div>
+        </div>
+
+        <div
+          ref={textRef}
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+        >
+          <HeroText ref={underlineRef} />
+        </div>
       </div>
     </section>
   );

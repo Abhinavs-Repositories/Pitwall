@@ -7,8 +7,11 @@ import * as THREE from "three";
 import { useCursorTrack } from "@/hooks/useCursorTrack";
 
 const MAX_TILT_RAD = THREE.MathUtils.degToRad(15);
-const PULSE_COUNT = 4;
 const PULSE_SPEED = 0.05; // fraction of the loop travelled per second
+
+// Each pulse takes a real 2026 team colour — the pit-wall watches the
+// whole grid, not just one car.
+const PULSE_COLORS = ["#e80020", "#ff8000", "#27f4d2", "#0090ff", "#3671c6"];
 
 // Hand-authored closed-loop control points: start/finish straight, a fast
 // kink, a flowing esses section, a hairpin, a long back straight, and a
@@ -33,7 +36,7 @@ const CIRCUIT_POINTS: [number, number, number][] = [
 function PulseDots({ curve }: { curve: THREE.CatmullRomCurve3 }) {
   const dotsRef = useRef<(THREE.Group | null)[]>([]);
   const phases = useMemo(
-    () => Array.from({ length: PULSE_COUNT }, (_, i) => i / PULSE_COUNT),
+    () => PULSE_COLORS.map((_, i) => i / PULSE_COLORS.length),
     []
   );
   const tRef = useRef(0);
@@ -49,21 +52,21 @@ function PulseDots({ curve }: { curve: THREE.CatmullRomCurve3 }) {
 
   return (
     <>
-      {phases.map((_, i) => (
+      {PULSE_COLORS.map((color, i) => (
         <group
-          key={i}
+          key={color}
           ref={(el) => {
             dotsRef.current[i] = el;
           }}
         >
           <mesh>
             <sphereGeometry args={[0.045, 12, 12]} />
-            <meshBasicMaterial color="#ff2d4d" toneMapped={false} />
+            <meshBasicMaterial color={color} toneMapped={false} />
           </mesh>
           <mesh>
             <sphereGeometry args={[0.12, 12, 12]} />
             <meshBasicMaterial
-              color="#e8002d"
+              color={color}
               transparent
               opacity={0.35}
               blending={THREE.AdditiveBlending}
