@@ -1,28 +1,31 @@
 "use client";
 
-import type { RaceState } from "@/lib/types";
+import type { DriverState, WeatherState } from "@/lib/types";
 import LapTimeChart from "./LapTimeChart";
 import { COMPOUND_COLOR, formatLapTime } from "@/lib/constants";
 
-export default function LapTimePanel({ raceState }: { raceState: RaceState | undefined }) {
-  const leader = raceState?.drivers.find((d) => d.position === 1);
-  const weather = raceState?.weather;
-
+export default function LapTimePanel({
+  driver,
+  weather,
+}: {
+  driver: DriverState | undefined;
+  weather: WeatherState | undefined;
+}) {
   return (
     <aside className="flex h-full min-h-0 flex-col overflow-hidden border-t border-border-dim bg-carbon-2 lg:border-l lg:border-t-0">
       <div className="border-b border-border-dim px-4 py-3">
         <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
-          // leader trace
+          // driver trace{driver ? ` — P${driver.position}` : ""}
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         <div className="border-b border-border-dim p-4">
-          <p className="font-mono text-xs text-text-muted">{leader?.name ?? "—"}</p>
+          <p className="font-mono text-xs text-text-muted">{driver?.name ?? "Select a driver"}</p>
           <p className="font-display text-4xl font-bold text-text-primary">
-            {formatLapTime(leader?.last_lap_time ?? null)}
+            {formatLapTime(driver?.last_lap_time ?? null)}
           </p>
-          <LapTimeChart driver={leader} />
+          <LapTimeChart driver={driver} />
         </div>
 
         <div className="border-b border-border-dim p-4">
@@ -53,11 +56,11 @@ export default function LapTimePanel({ raceState }: { raceState: RaceState | und
 
         <div className="p-4">
           <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
-            // stint data — {leader?.name ?? "—"}
+            // stint data{driver ? ` — ${driver.name}` : ""}
           </p>
           <div className="space-y-2">
-            {leader?.stints.length ? (
-              leader.stints.map((s) => (
+            {driver?.stints.length ? (
+              driver.stints.map((s) => (
                 <div
                   key={s.stint_number}
                   className="flex items-center justify-between font-mono text-xs"

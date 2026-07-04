@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import type { RaceState, StrategyRecommendation } from "@/lib/types";
 import { COMPOUND_COLOR, COMPOUND_LETTER, formatGap, teamColor } from "@/lib/constants";
 
@@ -7,10 +8,14 @@ export default function TelemetryPanel({
   raceState,
   loading,
   latestRecommendation,
+  selectedDriverNumber,
+  onSelectDriver,
 }: {
   raceState: RaceState | undefined;
   loading: boolean;
   latestRecommendation: StrategyRecommendation | null;
+  selectedDriverNumber: number | null;
+  onSelectDriver: (driverNumber: number) => void;
 }) {
   const drivers = [...(raceState?.drivers ?? [])].sort((a, b) => a.position - b.position);
 
@@ -29,32 +34,40 @@ export default function TelemetryPanel({
         {!loading && drivers.length === 0 && (
           <p className="p-4 font-mono text-xs text-text-muted">No driver data for this lap.</p>
         )}
-        {drivers.map((d) => (
-          <div
-            key={d.driver_number}
-            className="flex items-center gap-2 border-b border-border-dim px-4 py-2.5 text-xs"
-          >
-            <span className="w-5 font-mono text-text-secondary">P{d.position}</span>
-            <span
-              className="h-2 w-2 flex-shrink-0 rounded-full"
-              style={{ background: teamColor(d.team) }}
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-text-primary">{d.name}</p>
-              <p className="truncate font-mono text-[10px] text-text-muted">{d.team}</p>
-            </div>
-            <span
-              className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-bold text-carbon"
-              style={{ background: COMPOUND_COLOR[d.tire_compound] }}
-              title={d.tire_compound}
+        {drivers.map((d) => {
+          const selected = d.driver_number === selectedDriverNumber;
+          return (
+            <button
+              key={d.driver_number}
+              type="button"
+              onClick={() => onSelectDriver(d.driver_number)}
+              className={cn(
+                "flex w-full items-center gap-2 border-b border-l-2 border-border-dim px-4 py-2.5 text-left text-xs transition-colors hover:bg-carbon-3",
+                selected ? "border-l-f1-red bg-carbon-3" : "border-l-transparent"
+              )}
             >
-              {COMPOUND_LETTER[d.tire_compound]}
-            </span>
-            <span className="w-16 flex-shrink-0 text-right font-mono text-[11px] text-text-secondary">
-              {formatGap(d.gap_to_leader)}
-            </span>
-          </div>
-        ))}
+              <span className="w-5 font-mono text-text-secondary">P{d.position}</span>
+              <span
+                className="h-2 w-2 flex-shrink-0 rounded-full"
+                style={{ background: teamColor(d.team) }}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-text-primary">{d.name}</p>
+                <p className="truncate font-mono text-[10px] text-text-muted">{d.team}</p>
+              </div>
+              <span
+                className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-bold text-carbon"
+                style={{ background: COMPOUND_COLOR[d.tire_compound] }}
+                title={d.tire_compound}
+              >
+                {COMPOUND_LETTER[d.tire_compound]}
+              </span>
+              <span className="w-16 flex-shrink-0 text-right font-mono text-[11px] text-text-secondary">
+                {formatGap(d.gap_to_leader)}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {latestRecommendation && (

@@ -15,6 +15,7 @@ export default function StrategyPage() {
   const { data: races } = useRaceList();
   const [sessionKey, setSessionKey] = useState<number | null>(null);
   const [lap, setLap] = useState(15);
+  const [selectedDriverNumber, setSelectedDriverNumber] = useState<number | null>(null);
 
   useEffect(() => {
     if (sessionKey === null && races && races.length > 0) {
@@ -22,8 +23,21 @@ export default function StrategyPage() {
     }
   }, [races, sessionKey]);
 
+  // A driver picked for one race won't exist in another — reset on switch.
+  useEffect(() => {
+    setSelectedDriverNumber(null);
+  }, [sessionKey]);
+
   const { data: raceState, isLoading } = useRaceStateAtLap(sessionKey, lap);
   const { messages, send, isStreaming } = usePitwall(sessionKey, lap);
+
+  const selectedDriver = useMemo(() => {
+    if (!raceState) return undefined;
+    return (
+      raceState.drivers.find((d) => d.driver_number === selectedDriverNumber) ??
+      raceState.drivers.find((d) => d.position === 1)
+    );
+  }, [raceState, selectedDriverNumber]);
 
   const latestRecommendation = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -59,6 +73,8 @@ export default function StrategyPage() {
           raceState={raceState}
           loading={isLoading}
           latestRecommendation={latestRecommendation}
+          selectedDriverNumber={selectedDriver?.driver_number ?? null}
+          onSelectDriver={setSelectedDriverNumber}
         />
         <StrategyChat
           messages={messages}
@@ -66,7 +82,7 @@ export default function StrategyPage() {
           isStreaming={isStreaming}
           raceState={raceState}
         />
-        <LapTimePanel raceState={raceState} />
+        <LapTimePanel driver={selectedDriver} weather={raceState?.weather} />
       </div>
     </main>
   );
