@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Base palette */
+  --carbon: #0a0a0a;
+  --carbon-2: #111111;
+  --carbon-3: #181818;
+  --carbon-4: #222222;
+
+  /* Accent */
+  --f1-red: #e8002d;
+  --f1-red-dim: rgba(232, 0, 45, 0.12);
+  --f1-red-glow: rgba(232, 0, 45, 0.06);
+
+  /* Text */
+  --text-primary: #f5f5f5;
+  --text-secondary: #a0a0a0;
+  --text-muted: #606060;
+
+  /* Data colours */
+  --data-green: #00d26a;
+  --data-amber: #ffb800;
+  --data-blue: #00aaff;
+
+  /* Borders */
+  --border-dim: rgba(255, 255, 255, 0.06);
+  --border-bright: rgba(255, 255, 255, 0.12);
+  --border-accent: rgba(232, 0, 45, 0.4);
+
+  /* Team colours */
+  --team-redbull: #3671c6;
+  --team-ferrari: #e8002d;
+  --team-mercedes: #27f4d2;
+  --team-mclaren: #ff8000;
+  --team-alpine: #ff87bc;
+  --team-aston: #229971;
+  --team-williams: #64c4ff;
+  --team-haas: #b6babd;
+  --team-sauber: #52e252;
+  --team-rb: #6692ff;
+
+  /* Compound colours */
+  --compound-soft: #e8002d;
+  --compound-medium: #ffd700;
+  --compound-hard: #f0f0f0;
+  --compound-inter: #39b54a;
+  --compound-wet: #0067ff;
+
+  /* Typography */
+  --font-display: var(--font-rajdhani), sans-serif;
+  --font-mono: var(--font-jetbrains-mono), monospace;
+  --font-body: var(--font-inter), sans-serif;
+
+  /* Spacing */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--carbon);
+  overscroll-behavior: none;
+}
+
+body {
+  color: var(--text-primary);
+  background: var(--carbon);
+  font-family: var(--font-body);
+  overscroll-behavior: none;
+}
+
+::selection {
+  background: var(--f1-red);
+  color: var(--text-primary);
+}
+
+/* Lenis smooth-scroll: hands the rAF loop to Lenis instead of native scroll */
+html.lenis {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* Repeating grain overlay used on hero + cinematic panels */
+.grain-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+.font-body {
+  font-family: var(--font-body);
+}
