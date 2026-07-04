@@ -2,7 +2,8 @@ import HeroSection from "@/components/hero/HeroSection";
 import KineticText from "@/components/sections/KineticText";
 import ParallaxGallery from "@/components/sections/ParallaxGallery";
 import SplitSection from "@/components/sections/SplitSection";
-import StaggeredGrid from "@/components/sections/StaggeredGrid";
+import HorizontalCarousel from "@/components/sections/HorizontalCarousel";
+import Footer from "@/components/sections/Footer";
 
 export default function Home() {
   return (
@@ -11,7 +12,8 @@ export default function Home() {
       <KineticText />
       <ParallaxGallery />
       <SplitSection />
-      <StaggeredGrid />
+      <HorizontalCarousel />
+      <Footer />
     </main>
   );
 }
