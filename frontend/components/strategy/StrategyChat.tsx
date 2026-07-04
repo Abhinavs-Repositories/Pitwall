@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatEntry } from "@/hooks/usePitwall";
 import type { RaceState } from "@/lib/types";
+import type { TeamTheme } from "@/lib/constants";
 import RecommendationCard from "./RecommendationCard";
 import AgentTrace from "./AgentTrace";
 import Chip from "@/components/ui/Chip";
@@ -31,11 +32,13 @@ export default function StrategyChat({
   onSend,
   isStreaming,
   raceState,
+  theme,
 }: {
   messages: ChatEntry[];
   onSend: (msg: string) => void;
   isStreaming: boolean;
   raceState: RaceState | undefined;
+  theme: TeamTheme;
 }) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -51,8 +54,30 @@ export default function StrategyChat({
   }
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-carbon">
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-6">
+    <section className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-carbon">
+      {/* Team-colored ambient wash + logo watermark — re-themes with whichever
+          driver is selected instead of a fixed brand color. */}
+      <div
+        className="pointer-events-none absolute inset-0 transition-opacity duration-700"
+        style={{
+          background: `radial-gradient(60% 50% at 50% 40%, ${theme.primary}14, transparent 70%)`,
+        }}
+      />
+      {theme.logo && (
+        <div
+          key={theme.logo}
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage: `url(${theme.logo})`,
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "center",
+            backgroundSize: "min(55%, 420px)",
+            opacity: 0.07,
+          }}
+        />
+      )}
+
+      <div ref={scrollRef} className="relative flex-1 space-y-4 overflow-y-auto p-6">
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
             <p className="font-display text-2xl font-bold uppercase text-text-primary">
@@ -88,7 +113,7 @@ export default function StrategyChat({
         )}
       </div>
 
-      <div className="border-t border-border-dim p-4">
+      <div className="relative border-t border-border-dim bg-carbon p-4">
         <div className="mb-3 flex flex-wrap gap-2">
           {QUICK_CHIPS.map((c) => (
             <Chip key={c} onClick={() => onSend(c)}>
@@ -108,7 +133,8 @@ export default function StrategyChat({
           <button
             onClick={submit}
             disabled={!raceState || isStreaming || !input.trim()}
-            className="rounded-md bg-f1-red px-5 py-2.5 font-mono text-xs uppercase text-text-primary transition-opacity disabled:opacity-40"
+            style={{ background: "var(--team-primary)" }}
+            className="rounded-md px-5 py-2.5 font-mono text-xs uppercase text-text-primary transition-opacity disabled:opacity-40"
           >
             Send
           </button>

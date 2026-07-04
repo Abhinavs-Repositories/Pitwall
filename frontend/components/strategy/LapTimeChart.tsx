@@ -38,7 +38,7 @@ export default function LapTimeChart({ driver }: { driver: DriverState | undefin
           formatter={(value: number) => [`${value.toFixed(3)}s`, "Lap time"]}
           labelFormatter={(lap) => `Lap ${lap}`}
         />
-        <Line type="monotone" dataKey="time" stroke="var(--f1-red)" strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="time" stroke="var(--team-primary)" strokeWidth={2} dot={false} />
       </LineChart>
     </ResponsiveContainer>
   );

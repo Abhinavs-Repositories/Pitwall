@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRaceList, useRaceStateAtLap } from "@/hooks/useRaceState";
 import { usePitwall } from "@/hooks/usePitwall";
+import { getTeamTheme } from "@/lib/constants";
 import RaceSelector from "@/components/strategy/RaceSelector";
 import LapControl from "@/components/strategy/LapControl";
 import TelemetryPanel from "@/components/strategy/TelemetryPanel";
@@ -46,6 +47,15 @@ export default function StrategyPage() {
     return null;
   }, [messages]);
 
+  // The whole console re-themes around whichever driver is selected — the
+  // selected team's colors become the accent throughout instead of the
+  // fixed F1 red.
+  const theme = useMemo(() => getTeamTheme(selectedDriver?.team), [selectedDriver]);
+  const themeVars = {
+    "--team-primary": theme.primary,
+    "--team-secondary": theme.secondary,
+  } as CSSProperties;
+
   // Clamp the lap slider once we learn the race's real total lap count.
   useEffect(() => {
     if (raceState && lap > raceState.total_laps) {
@@ -54,13 +64,24 @@ export default function StrategyPage() {
   }, [raceState, lap]);
 
   return (
-    <main className="flex h-screen flex-col overflow-hidden bg-carbon text-text-primary">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-dim px-6 py-3">
+    <main
+      style={themeVars}
+      className="flex h-screen flex-col overflow-hidden bg-carbon text-text-primary"
+    >
+      <header
+        className="flex flex-wrap items-center justify-between gap-3 border-b-2 px-6 py-3 transition-colors duration-500"
+        style={{ borderColor: "var(--team-primary)" }}
+      >
         <div className="flex items-center gap-3">
           <Link href="/" className="font-display text-lg font-bold uppercase text-text-primary">
             PITWALL
           </Link>
           <LiveBadge label="REPLAY" />
+          {selectedDriver && (
+            <span className="font-mono text-[11px] uppercase tracking-widest text-text-muted">
+              // {theme.name}
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <RaceSelector races={races ?? []} value={sessionKey} onChange={setSessionKey} />
@@ -81,6 +102,7 @@ export default function StrategyPage() {
           onSend={send}
           isStreaming={isStreaming}
           raceState={raceState}
+          theme={theme}
         />
         <LapTimePanel driver={selectedDriver} weather={raceState?.weather} />
       </div>

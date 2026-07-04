@@ -41,9 +41,10 @@ export default function TelemetryPanel({
               key={d.driver_number}
               type="button"
               onClick={() => onSelectDriver(d.driver_number)}
+              style={{ borderLeftColor: selected ? "var(--team-primary)" : "transparent" }}
               className={cn(
                 "flex w-full items-center gap-2 border-b border-l-2 border-border-dim px-4 py-2.5 text-left text-xs transition-colors hover:bg-carbon-3",
-                selected ? "border-l-f1-red bg-carbon-3" : "border-l-transparent"
+                selected && "bg-carbon-3"
               )}
             >
               <span className="w-5 font-mono text-text-secondary">P{d.position}</span>
