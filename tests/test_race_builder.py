@@ -11,6 +11,7 @@ from src.data.race_builder import (
     _build_pit,
     _build_stint,
     _build_weather,
+    _filter_intervals_by_lap,
     _parse_gap,
     build_race_state,
 )
@@ -117,6 +118,49 @@ def test_parse_gap(raw, expected):
         assert result is None
     else:
         assert result == pytest.approx(expected)
+
+
+# ---------------------------------------------------------------------------
+# Unit: _filter_intervals_by_lap
+# ---------------------------------------------------------------------------
+
+
+def test_filter_intervals_by_lap_excludes_intervals_after_cutoff():
+    """Regression test: this previously returned every interval unfiltered
+    regardless of up_to_lap, so gap_to_leader/gap_to_ahead (and the position
+    ordering derived from them) were always the final race classification
+    instead of the state at the requested lap."""
+    filtered_laps = [
+        {
+            "driver_number": 1,
+            "lap_number": 1,
+            "date_start": "2024-01-01T12:00:00+00:00",
+            "lap_duration": 90.0,
+        },
+        {
+            "driver_number": 1,
+            "lap_number": 2,
+            "date_start": "2024-01-01T12:01:30+00:00",
+            "lap_duration": 90.0,
+        },
+    ]
+    # cutoff = end of lap 2 = 12:03:00
+
+    intervals_raw = [
+        {"driver_number": 1, "date": "2024-01-01T12:00:45+00:00", "gap_to_leader": 1.0},
+        {"driver_number": 1, "date": "2024-01-01T12:02:59+00:00", "gap_to_leader": 2.0},
+        {"driver_number": 1, "date": "2024-01-01T12:05:00+00:00", "gap_to_leader": 99.0},  # after cutoff
+    ]
+
+    result = _filter_intervals_by_lap(intervals_raw, filtered_laps)
+
+    assert [r["gap_to_leader"] for r in result] == [1.0, 2.0]
+
+
+def test_filter_intervals_by_lap_no_lap_data_returns_unfiltered():
+    intervals_raw = [{"driver_number": 1, "date": "2024-01-01T12:00:00+00:00", "gap_to_leader": 1.0}]
+    result = _filter_intervals_by_lap(intervals_raw, filtered_laps=[])
+    assert result == intervals_raw
 
 
 # ---------------------------------------------------------------------------

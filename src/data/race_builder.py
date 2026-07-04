@@ -7,7 +7,7 @@ with well-typed Pydantic models instead of raw dicts.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from src.data.models import (
@@ -366,9 +366,44 @@ def _latest_by(raw_list: RawList, key: str) -> dict[int, dict[str, Any]]:
 def _filter_intervals_by_lap(
     intervals_raw: RawList, filtered_laps: RawList
 ) -> RawList:
-    """Keep only interval records that fall within the date range of filtered laps."""
-    # Simplified: return all intervals (date filtering would need date comparisons)
-    return intervals_raw
+    """Keep only interval records at or before up_to_lap was completed.
+
+    OpenF1's /intervals has no lap_number field, only a timestamp — so the
+    cutoff is derived from the filtered laps' own start time + duration
+    (the latest lap-end timestamp among laps <= up_to_lap, across all
+    drivers). Without this, gaps/positions were computed from the full
+    unfiltered interval history, i.e. always the final race classification
+    regardless of which lap was requested.
+    """
+    cutoff: datetime | None = None
+    for lap in filtered_laps:
+        date_start = lap.get("date_start")
+        duration = lap.get("lap_duration")
+        if not date_start or duration is None:
+            continue
+        try:
+            start = datetime.fromisoformat(date_start.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        end = start + timedelta(seconds=float(duration))
+        if cutoff is None or end > cutoff:
+            cutoff = end
+
+    if cutoff is None:
+        return intervals_raw
+
+    result: RawList = []
+    for raw in intervals_raw:
+        date_str = raw.get("date")
+        if not date_str:
+            continue
+        try:
+            d = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if d <= cutoff:
+            result.append(raw)
+    return result
 
 
 # ---------------------------------------------------------------------------
